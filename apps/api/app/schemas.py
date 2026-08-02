@@ -59,12 +59,24 @@ class CreateItemRequest(Wire):
         return self
 
 
+class DuplicateOf(Wire):
+    """The already-saved item a re-save collided with."""
+
+    item_id: uuid.UUID
+    title: str | None = None
+    #: Set once the item has compiled into a page, so the UI can link to it.
+    page_slug: str | None = None
+
+
 class CreateItemResponse(Wire):
     item_id: uuid.UUID
     run_id: uuid.UUID | None
     status: RunStatus
     #: True when this content was already saved; nothing was queued.
     duplicate: bool = False
+    #: What it matched. Present only on a duplicate, so the reader can check the
+    #: refusal instead of taking it on faith.
+    duplicate_of: DuplicateOf | None = None
     #: How many compiles a long document was split into. 1 for a normal save.
     parts_queued: int = 1
 

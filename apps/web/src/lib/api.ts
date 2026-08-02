@@ -228,6 +228,8 @@ export interface CreateItemResult {
   runId: string | null;
   status: RunStatus;
   duplicate: boolean;
+  /** What a re-save collided with, so the refusal can be checked rather than trusted. */
+  duplicateOf: { itemId: string; title: string | null; pageSlug: string | null } | null;
   /** How many compiles a long document was split into. 1 for a normal save. */
   partsQueued: number;
 }

@@ -22,10 +22,10 @@ from sqlalchemy import select
 from ..config import get_settings
 from ..deps import DbDep, EmbedderDep, MemberScope, ScopeDep
 from ..extraction import FetchError, derive_title, fetch_readable, normalize_content
-from ..models import RawItem
+from ..models import RawItem, WikiPage, WikiPageSource
 from ..queue import enqueue_compile
 from ..ratelimit import check_hourly
-from ..schemas import CreateItemRequest, CreateItemResponse, RawItemOut
+from ..schemas import CreateItemRequest, CreateItemResponse, DuplicateOf, RawItemOut
 from ..services.capture import SavedItem, save_and_queue
 from ..services.chunking import chunk_text, chunk_title
 from ..services.pdf import PdfError, extract_pdf
@@ -33,6 +33,29 @@ from ..services.storage import get_object_store
 
 router = APIRouter(prefix="/api/v1/items", tags=["capture"])
 log = structlog.get_logger(__name__)
+
+
+async def _describe_duplicate(db: DbDep, saved: SavedItem, scope) -> DuplicateOf | None:
+    """Name what a re-save collided with, and where to read it.
+
+    A refusal the reader cannot check is indistinguishable from a bug: told only
+    "already saved", they have no way to tell whether the system matched the right
+    thing. The page slug is looked up separately because an item saved moments ago
+    may not have compiled yet — the title alone is still worth returning.
+    """
+    if not saved.duplicate:
+        return None
+
+    slug = await db.scalar(
+        select(WikiPage.slug)
+        .join(WikiPageSource, WikiPageSource.page_id == WikiPage.id)
+        .where(
+            WikiPageSource.raw_item_id == saved.item_id,
+            WikiPage.workspace_id == scope.workspace_id,
+        )
+        .limit(1)
+    )
+    return DuplicateOf(item_id=saved.item_id, title=saved.existing_title, page_slug=slug)
 
 
 @router.post("", response_model=CreateItemResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -90,6 +113,7 @@ async def create_item(
         run_id=saved.run_id,
         status="succeeded" if saved.duplicate else "queued",
         duplicate=saved.duplicate,
+        duplicate_of=await _describe_duplicate(db, saved, scope),
     )
 
 
@@ -197,6 +221,7 @@ async def upload_pdf(
         run_id=first.run_id,
         status="succeeded" if not queued else "queued",
         duplicate=not queued,
+        duplicate_of=None if queued else await _describe_duplicate(db, first, scope),
         parts_queued=len(queued),
     )
 

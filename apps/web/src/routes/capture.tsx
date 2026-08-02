@@ -5,7 +5,7 @@
  * watching it land in the knowledge base, and that only reads as a payoff if you
  * can see it happen from where you saved.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DiffCard, FailedCard, PendingCard, RunCard } from "~/components/compile-diff";
@@ -93,7 +93,12 @@ function CapturePage() {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<{ kind: "info" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    kind: "info" | "error";
+    text: string;
+    /** A compiled page worth opening, when the notice refers to one. */
+    pageSlug?: string | null;
+  } | null>(null);
 
   const [runs, setRuns] = useState<Run[]>(initialRuns);
   const [live, setLive] = useState<Record<string, LiveRun>>({});
@@ -218,7 +223,16 @@ function CapturePage() {
       }
 
       if (result.duplicate) {
-        setNotice({ kind: "info", text: "Already saved — nothing to recompile." });
+        // Naming the match matters: told only "already saved", there is no way to
+        // tell whether the right thing was matched or something went wrong.
+        const matched = result.duplicateOf?.title;
+        setNotice({
+          kind: "info",
+          text: matched
+            ? `Already saved as “${matched}” — nothing to recompile.`
+            : "Already saved — nothing to recompile.",
+          pageSlug: result.duplicateOf?.pageSlug ?? null,
+        });
       } else {
         setValue("");
         setFile(null);
@@ -424,6 +438,18 @@ function CapturePage() {
             }`}
           >
             {notice.text}
+            {notice.pageSlug && (
+              <>
+                {" "}
+                <Link
+                  to="/wiki/$slug"
+                  params={{ slug: notice.pageSlug }}
+                  className="text-link underline underline-offset-4 hover:text-link-hover"
+                >
+                  Open the page
+                </Link>
+              </>
+            )}
           </p>
         )}
       </section>

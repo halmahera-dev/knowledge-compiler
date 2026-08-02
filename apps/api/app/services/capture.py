@@ -28,12 +28,22 @@ log = structlog.get_logger(__name__)
 class SavedItem:
     """What a save produced: the item, its run, and whether it was a duplicate."""
 
-    __slots__ = ("item_id", "run_id", "duplicate")
+    __slots__ = ("item_id", "run_id", "duplicate", "existing_title")
 
-    def __init__(self, item_id: uuid.UUID, run_id: uuid.UUID | None, duplicate: bool) -> None:
+    def __init__(
+        self,
+        item_id: uuid.UUID,
+        run_id: uuid.UUID | None,
+        duplicate: bool,
+        existing_title: str | None = None,
+    ) -> None:
         self.item_id = item_id
         self.run_id = run_id
         self.duplicate = duplicate
+        #: What the content matched, when it matched something. Refusing a save
+        #: without naming what it collided with leaves the reader unable to judge
+        #: whether the refusal was right.
+        self.existing_title = existing_title
 
 
 async def save_and_queue(
@@ -65,7 +75,12 @@ async def save_and_queue(
         )
     )
     if existing is not None:
-        return SavedItem(item_id=existing.id, run_id=None, duplicate=True)
+        return SavedItem(
+            item_id=existing.id,
+            run_id=None,
+            duplicate=True,
+            existing_title=existing.title,
+        )
 
     wiki = await resolve_wiki(db, scope, wiki_id)
 
