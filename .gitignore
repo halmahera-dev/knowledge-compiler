@@ -1,0 +1,35 @@
+node_modules/
+dist/
+.output/
+.nitro/
+.tanstack/
+.mastra/
+mastra.db
+mastra.db-*
+.turbo/
+.vinxi/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Env — .env holds real credentials, never commit it
+.env
+.env.local
+.env.*.local
+
+# Local model cache for the embedding fallback
+.cache/
+apps/api/.model-cache/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,384 @@
+/**
+ * The compile pipeline: extract → match → compile → link → persist (HLD §3.4).
+ *
+ * Deterministic by construction. The steps and their order are fixed; the model
+ * supplies judgement inside each one but never decides what happens next. That is
+ * what makes a compile explainable after the fact — every run took the same path,
+ * so a bad result is attributable to one stage.
+ */
+import { createStep, createWorkflow } from "@mastra/core/workflows";
+import { z } from "zod";
+
+import { compilerAgent, extractorAgent, linkerAgent } from "../agents";
+import {
+  applyCompile,
+  getPageClaims,
+  getRawItem,
+  reportFailure,
+  reportStep,
+  searchSimilarPages,
+  type ExistingClaim,
+  type PageCandidate,
+} from "../api";
+import { config } from "../config";
+import { compilationSchema, extractionSchema, linkageSchema } from "../schemas";
+
+const workflowInput = z.object({
+  runId: z.string(),
+  rawItemId: z.string(),
+  workspaceId: z.string(),
+});
+
+/**
+ * Each step's shape is declared here rather than derived from the previous
+ * step's `outputSchema`: Mastra wraps those in a StandardSchema at the step
+ * boundary, so they are no longer chainable zod objects.
+ */
+const afterExtract = workflowInput.extend({
+  extraction: extractionSchema,
+  content: z.string(),
+  sourceUrl: z.string().nullable(),
+});
+
+const candidateSchema = z.object({
+  pageId: z.string(),
+  slug: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  similarity: z.number(),
+});
+
+const existingClaimSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  section: z.string(),
+  status: z.enum(["asserted", "disputed", "superseded"]),
+});
+
+const afterMatch = afterExtract.extend({
+  candidates: z.array(candidateSchema),
+  threshold: z.number(),
+  existingClaims: z.array(existingClaimSchema),
+  targetPageId: z.string().nullable(),
+  targetBody: z.string(),
+});
+
+const afterCompile = afterMatch.extend({ compilation: compilationSchema });
+const afterLink = afterCompile.extend({ linkage: linkageSchema });
+
+const workflowOutput = z.object({
+  runId: z.string(),
+  pageSlug: z.string(),
+  action: z.string(),
+  applied: z.boolean(),
+});
+
+/** Long documents are truncated before reaching the model; the tail of an article is rarely load-bearing. */
+const MAX_MODEL_CHARS = 24_000;
+
+/**
+ * Runs an agent and validates its output, retrying a bounded number of times.
+ *
+ * A model that cannot produce the required shape twice will not produce it on the
+ * tenth attempt, so this fails fast and preserves the raw output — a compile that
+ * failed for a knowable reason is far more useful than one that failed silently.
+ */
+async function generateStructured<T extends z.ZodType>(
+  agent: { generate: (input: string, options: unknown) => Promise<{ object?: unknown; text?: string }> },
+  prompt: string,
+  schema: T,
+  { runId, step }: { runId: string; step: string },
+): Promise<z.infer<T>> {
+  let lastError = "";
+  let lastRaw = "";
+
+  for (let attempt = 1; attempt <= config.maxRetries + 1; attempt += 1) {
+    let response: { object?: unknown; text?: string };
+    try {
+      response = await agent.generate(prompt, { structuredOutput: { schema } });
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      continue;
+    }
+
+    lastRaw = response.text ?? JSON.stringify(response.object ?? null);
+    const parsed = schema.safeParse(response.object);
+    if (parsed.success) return parsed.data;
+
+    lastError = parsed.error.issues
+      .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+      .join("; ");
+  }
+
+  const message = `${step} produced output that did not match its schema after ${
+    config.maxRetries + 1
+  } attempts — ${lastError}`;
+  await reportFailure(runId, message, lastRaw);
+  throw new Error(message);
+}
+
+// ─── 1. extract ──────────────────────────────────────────────────────────────
+
+const extract = createStep({
+  id: "extract",
+  inputSchema: workflowInput,
+  outputSchema: afterExtract,
+  execute: async ({ inputData }) => {
+    const { runId, rawItemId } = inputData;
+    await reportStep(runId, "extract", "Reading the source");
+
+    const item = await getRawItem(rawItemId);
+    const content = item.content.slice(0, MAX_MODEL_CHARS);
+
+    const extraction = await generateStructured(
+      extractorAgent,
+      [
+        item.title ? `Title: ${item.title}` : "",
+        item.sourceUrl ? `Source: ${item.sourceUrl}` : "",
+        "",
+        "Document:",
+        content,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      extractionSchema,
+      { runId, step: "extract" },
+    );
+
+    await reportStep(
+      runId,
+      "extract",
+      `Found ${extraction.claims.length} claims across ${extraction.concepts.length} concepts`,
+    );
+
+    return { ...inputData, extraction, content, sourceUrl: item.sourceUrl };
+  },
+});
+
+// ─── 2. match ────────────────────────────────────────────────────────────────
+
+const match = createStep({
+  id: "match",
+  inputSchema: afterExtract,
+  outputSchema: afterMatch,
+  execute: async ({ inputData }) => {
+    const { runId, extraction } = inputData;
+    await reportStep(runId, "match", "Looking for an existing page on this topic");
+
+    const { candidates, threshold } = await searchSimilarPages(
+      runId,
+      `${extraction.title}\n\n${extraction.summary}`,
+    );
+
+    // Only the closest page is a merge candidate, and only above the threshold.
+    // Everything else is context for the compiler's decision.
+    const best: PageCandidate | undefined =
+      candidates[0] && candidates[0].similarity >= threshold ? candidates[0] : undefined;
+
+    let existingClaims: ExistingClaim[] = [];
+    let targetBody = "";
+
+    if (best) {
+      // Fetching the live claims is what makes contradiction detection possible —
+      // without them the compiler has nothing to contradict against.
+      const page = await getPageClaims(best.pageId);
+      existingClaims = page.claims;
+      targetBody = page.sections
+        .map((section) => `## ${section.heading}\n${section.body}`)
+        .join("\n\n");
+
+      await reportStep(
+        runId,
+        "match",
+        `Matched "${best.title}" at ${(best.similarity * 100).toFixed(0)}% similarity`,
+      );
+    } else {
+      await reportStep(runId, "match", "No existing page is close enough — this is a new topic");
+    }
+
+    return {
+      ...inputData,
+      candidates,
+      threshold,
+      existingClaims,
+      targetPageId: best?.pageId ?? null,
+      targetBody,
+    };
+  },
+});
+
+// ─── 3. compile ──────────────────────────────────────────────────────────────
+
+const compile = createStep({
+  id: "compile",
+  inputSchema: afterMatch,
+  outputSchema: afterCompile,
+  execute: async ({ inputData }) => {
+    const { runId, extraction, candidates, threshold, existingClaims, targetPageId, targetBody } =
+      inputData;
+    await reportStep(runId, "compile", "Deciding how this fits the knowledge base");
+
+    const candidateList =
+      candidates.length > 0
+        ? candidates
+            .map(
+              (c) =>
+                `- id=${c.pageId} similarity=${c.similarity.toFixed(3)} "${c.title}" — ${c.summary}`,
+            )
+            .join("\n")
+        : "(none — the knowledge base has no pages on related topics yet)";
+
+    const claimList =
+      existingClaims.length > 0
+        ? existingClaims
+            .map((c) => `- id=${c.id} [${c.status}] (${c.section}) ${c.text}`)
+            .join("\n")
+        : "(none)";
+
+    const compilation = await generateStructured(
+      compilerAgent,
+      `New source
+-----------
+Title: ${extraction.title}
+Topic: ${extraction.topic}
+Summary: ${extraction.summary}
+Concepts: ${extraction.concepts.join(", ") || "(none)"}
+
+Claims extracted from it:
+${extraction.claims.map((c) => `- (${c.section}) ${c.text}\n  quote: "${c.quote}"`).join("\n")}
+
+Candidate pages (merge threshold is ${threshold.toFixed(2)})
+-----------
+${candidateList}
+
+${
+  targetPageId
+    ? `Target page id=${targetPageId}. Its current body:\n\n${targetBody || "(empty)"}\n\nIts current claims — check each new claim against these for contradictions:\n${claimList}`
+    : "No candidate is above the threshold, so this is most likely a new page."
+}
+
+Produce the complete compiled page.`,
+      compilationSchema,
+      { runId, step: "compile" },
+    );
+
+    // The model picks the action, but it does not get to invent a merge target.
+    // Pinning this to what `match` actually resolved prevents a hallucinated id
+    // from writing into an unrelated page.
+    const resolved = {
+      ...compilation,
+      targetPageId: compilation.action === "create" ? null : targetPageId,
+      action: compilation.action !== "create" && !targetPageId ? "create" : compilation.action,
+    };
+
+    await reportStep(
+      runId,
+      "compile",
+      `${resolved.action === "create" ? "Creating" : "Merging into"} "${resolved.title}"`,
+    );
+
+    return { ...inputData, compilation: resolved };
+  },
+});
+
+// ─── 4. link ─────────────────────────────────────────────────────────────────
+
+const link = createStep({
+  id: "link",
+  inputSchema: afterCompile,
+  outputSchema: afterLink,
+  execute: async ({ inputData }) => {
+    const { runId, extraction, compilation } = inputData;
+    await reportStep(runId, "link", "Connecting this into the graph");
+
+    // The node labels the API will actually create. Constraining the model to this
+    // list is what stops it proposing edges between nodes that do not exist.
+    const available = [compilation.title, ...extraction.concepts];
+
+    const linkage = await generateStructured(
+      linkerAgent,
+      `Page: ${compilation.title}
+Summary: ${compilation.summary}
+
+Available nodes — use these labels EXACTLY, and only these:
+${available.map((label) => `- ${label}`).join("\n")}
+
+Draw the typed relationships that genuinely hold between them, and raise any real
+knowledge gap this page exposes.`,
+      linkageSchema,
+      { runId, step: "link" },
+    );
+
+    const valid = new Set(available.map((label) => label.trim().toLowerCase()));
+    const edges = linkage.edges.filter(
+      (edge) =>
+        valid.has(edge.source.trim().toLowerCase()) &&
+        valid.has(edge.target.trim().toLowerCase()) &&
+        edge.source.trim().toLowerCase() !== edge.target.trim().toLowerCase(),
+    );
+
+    await reportStep(
+      runId,
+      "link",
+      `${edges.length} edges, ${linkage.gaps.length} open question${linkage.gaps.length === 1 ? "" : "s"}`,
+    );
+
+    return { ...inputData, linkage: { ...linkage, edges } };
+  },
+});
+
+// ─── 5. persist ──────────────────────────────────────────────────────────────
+
+const persist = createStep({
+  id: "persist",
+  inputSchema: afterLink,
+  outputSchema: workflowOutput,
+  execute: async ({ inputData }) => {
+    const { runId, rawItemId, extraction, compilation, linkage } = inputData;
+    await reportStep(runId, "persist", "Writing to the knowledge base");
+
+    const diff = await applyCompile({
+      runId,
+      rawItemId,
+      action: compilation.action,
+      targetPageId: compilation.targetPageId,
+      title: compilation.title,
+      slug: compilation.slug,
+      summary: compilation.summary,
+      sections: compilation.sections,
+      claims: compilation.claims.map((claim) => ({
+        text: claim.text,
+        quote: claim.quote,
+        section: claim.section,
+        confidence: claim.confidence,
+        status: claim.status,
+        contradictsClaimId: claim.contradictsClaimId,
+      })),
+      concepts: extraction.concepts,
+      edges: linkage.edges,
+      gaps: linkage.gaps,
+      reasoning: compilation.reasoning,
+    });
+
+    const page = (diff.page ?? {}) as { slug?: string };
+    return {
+      runId,
+      pageSlug: page.slug ?? compilation.slug,
+      action: String(diff.action ?? compilation.action),
+      applied: true,
+    };
+  },
+});
+
+export const compileItemWorkflow = createWorkflow({
+  id: "compile-item",
+  description: "Compile one captured item into the wiki and graph.",
+  inputSchema: workflowInput,
+  outputSchema: workflowOutput,
+})
+  .then(extract)
+  .then(match)
+  .then(compile)
+  .then(link)
+  .then(persist)
+  .commit();

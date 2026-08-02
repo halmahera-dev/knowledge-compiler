@@ -1,0 +1,38 @@
+{
+  "name": "knowledge-compiler",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Compile everything you read into a self-organizing wiki and topic graph.",
+  "packageManager": "pnpm@10.8.1",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "pnpm dev:clean && pnpm db:up && pnpm dev:all",
+    "dev:all": "concurrently --prefix-colors cyan,magenta,green,yellow --names web,agent,api,worker \"pnpm --filter @kc/web dev\" \"pnpm --filter @kc/agent dev\" \"pnpm api:dev\" \"pnpm api:worker\"",
+    "dev:web": "pnpm --filter @kc/web dev",
+    "dev:agent": "pnpm --filter @kc/agent dev",
+    "api:dev": "cd apps/api && uv run uvicorn app.main:app --reload --port 8000",
+    "api:worker": "cd apps/api && uv run arq app.worker.WorkerSettings",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "api:test": "cd apps/api && uv run pytest",
+    "db:up": "node scripts/db-up.mjs",
+    "db:migrate": "node scripts/migrate.mjs deploy",
+    "db:migrate:new": "node scripts/migrate.mjs new",
+    "db:studio": "prisma studio",
+    "seed": "cd apps/api && uv run python -m app.seed",
+    "setup": "pnpm install && pnpm db:up && pnpm db:migrate && cd apps/api && uv sync --extra dev --extra local-embeddings",
+    "dev:clean": "node scripts/dev-clean.mjs",
+    "test:ts": "turbo run test",
+    "test": "pnpm test:ts && pnpm api:test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4",
+    "dotenv": "^17.4.2",
+    "prisma": "^7.9.1",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

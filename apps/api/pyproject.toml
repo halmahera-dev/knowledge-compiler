@@ -1,0 +1,59 @@
+[project]
+name = "kc-api"
+version = "0.1.0"
+description = "Knowledge Compiler API — capture, storage, embeddings, and the compile pipeline."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "sqlalchemy-cockroachdb>=2.0.2",
+    "asyncpg>=0.30.0",
+    "redis>=5.2.0",
+    "arq>=0.26.1",
+    "httpx>=0.28.0",
+    "trafilatura>=2.0.0",
+    "boto3>=1.35.0",
+    "sse-starlette>=2.1.3",
+    "structlog>=24.4.0",
+    "python-dotenv>=1.0.1",
+    "rapidfuzz>=3.14.5",
+    "pyjwt[crypto]>=2.10",
+    "pypdfium2>=5.12",
+    "pikepdf>=10.11",
+    "python-multipart>=0.0.20",
+]
+
+[project.optional-dependencies]
+# The local embedding fallback. Kept optional because it pulls ~1.3GB of ONNX
+# runtime + model weights, which is wasted if Bedrock Titan is reachable.
+local-embeddings = ["fastembed>=0.5.1"]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+]
+
+[project.scripts]
+kc-api = "app.main:main"
+kc-seed = "app.seed:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

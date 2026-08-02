@@ -1,0 +1,40 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalEnv": [
+    "DATABASE_URL",
+    "COCKROACH_URL",
+    "REDIS_URI",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "BEDROCK_MODEL",
+    "BEDROCK_PROJECT",
+    "VITE_API_URL",
+    "MASTRA_URL",
+    "INTERNAL_API_URL",
+    "INTERNAL_API_TOKEN"
+  ],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".output/**",
+        ".mastra/**"
+      ]
+    },
+    "lint": {},
+    "typecheck": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test": {}
+  }
+}

@@ -1,0 +1,6 @@
+# apps/extension is intentionally absent: it is plain files loaded unpacked by
+# the browser, with no dependencies and no build step.
+packages:
+  - "apps/web"
+  - "apps/agent"
+  - "packages/*"

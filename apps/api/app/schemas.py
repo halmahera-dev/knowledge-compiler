@@ -1,0 +1,427 @@
+"""Pydantic request/response models.
+
+Mirrors `packages/contracts/src/index.ts`, which is the same contract expressed
+in zod for the web app and the Mastra agent. Field names are camelCase on the
+wire so the TypeScript side needs no mapping layer.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import uuid
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+CaptureType = Literal["paste", "clip", "link", "pdf"]
+ClaimStatus = Literal["asserted", "disputed", "superseded"]
+RunStatus = Literal["queued", "running", "succeeded", "failed"]
+CompileAction = Literal["create", "merge", "addendum"]
+EdgeRelation = Literal["extends", "contradicts", "prerequisite_of", "example_of", "related_to"]
+SourceStance = Literal["supports", "contradicts"]
+
+
+def _camel(name: str) -> str:
+    head, *rest = name.split("_")
+    return head + "".join(word.capitalize() for word in rest)
+
+
+class Wire(BaseModel):
+    """Base for anything crossing the network: camelCase aliases, populate by name."""
+
+    model_config = ConfigDict(
+        alias_generator=_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+# ─── capture ─────────────────────────────────────────────────────────────────
+
+
+class CreateItemRequest(Wire):
+    #: pdf is deliberately absent: it arrives as multipart at /items/pdf, and
+    #: accepting it here would create an item with no file behind it.
+    capture_type: Literal["paste", "clip", "link"]
+    #: Which wiki to file this under. Omitted means the workspace default.
+    wiki_id: uuid.UUID | None = None
+    content: str | None = None
+    source_url: str | None = None
+    title: str | None = None
+
+    @model_validator(mode="after")
+    def _require_payload(self) -> CreateItemRequest:
+        if self.capture_type == "link":
+            if not self.source_url:
+                raise ValueError("link captures require sourceUrl")
+        elif not (self.content and self.content.strip()):
+            raise ValueError(f"{self.capture_type} captures require content")
+        return self
+
+
+class CreateItemResponse(Wire):
+    item_id: uuid.UUID
+    run_id: uuid.UUID | None
+    status: RunStatus
+    #: True when this content was already saved; nothing was queued.
+    duplicate: bool = False
+    #: How many compiles a long document was split into. 1 for a normal save.
+    parts_queued: int = 1
+
+
+class RawItemOut(Wire):
+    """An item as shown in the browser — excerpt only, never the full body."""
+
+    id: uuid.UUID
+    capture_type: CaptureType
+    source_url: str | None
+    title: str | None
+    status: str
+    created_at: dt.datetime
+    excerpt: str = ""
+
+
+class RawItemContent(Wire):
+    """An item as the compile pipeline sees it: the whole document.
+
+    Deliberately a separate shape from `RawItemOut` so a UI endpoint can never
+    start returning a 200KB body by accident, and so the agent can never be fed
+    a truncated one.
+    """
+
+    id: uuid.UUID
+    capture_type: CaptureType
+    source_url: str | None
+    title: str | None
+    content: str
+    created_at: dt.datetime
+
+
+# ─── wiki ────────────────────────────────────────────────────────────────────
+
+
+class ClaimSourceOut(Wire):
+    raw_item_id: uuid.UUID
+    quote: str
+    stance: SourceStance
+    source_url: str | None = None
+    source_title: str | None = None
+
+
+class ClaimOut(Wire):
+    id: uuid.UUID
+    section: str
+    position: int
+    text: str
+    status: ClaimStatus
+    confidence: float
+    sources: list[ClaimSourceOut] = Field(default_factory=list)
+
+
+class SectionOut(Wire):
+    heading: str
+    body: str
+
+
+class PageSummaryOut(Wire):
+    id: uuid.UUID
+    slug: str
+    title: str
+    summary: str
+    updated_at: dt.datetime
+    source_count: int = 0
+    claim_count: int = 0
+    disputed_count: int = 0
+
+
+class RevisionMetaOut(Wire):
+    id: uuid.UUID
+    revision_no: int
+    created_at: dt.datetime
+    action: str | None = None
+
+
+class PageDetailOut(Wire):
+    id: uuid.UUID
+    slug: str
+    title: str
+    summary: str
+    created_at: dt.datetime
+    updated_at: dt.datetime
+    revision_no: int
+    sections: list[SectionOut] = Field(default_factory=list)
+    claims: list[ClaimOut] = Field(default_factory=list)
+    sources: list[RawItemOut] = Field(default_factory=list)
+    #: Pages one hop away in the graph — the "see also" rail.
+    backlinks: list[PageSummaryOut] = Field(default_factory=list)
+    revisions: list[RevisionMetaOut] = Field(default_factory=list)
+
+
+class RevertRequest(Wire):
+    revision_no: int
+
+
+# ─── graph ───────────────────────────────────────────────────────────────────
+
+
+class GraphNodeOut(Wire):
+    id: uuid.UUID
+    label: str
+    kind: Literal["topic", "entity"]
+    weight: int
+    slug: str | None = None
+
+
+class GraphEdgeOut(Wire):
+    id: uuid.UUID
+    source: uuid.UUID
+    target: uuid.UUID
+    relation: EdgeRelation
+    weight: float
+
+
+class GraphOut(Wire):
+    nodes: list[GraphNodeOut] = Field(default_factory=list)
+    edges: list[GraphEdgeOut] = Field(default_factory=list)
+
+
+# ─── runs / feed ─────────────────────────────────────────────────────────────
+
+
+class CompileDiffPage(Wire):
+    id: uuid.UUID
+    slug: str
+    title: str
+    revision_no: int
+
+
+class CompileDiffEdge(Wire):
+    source: str
+    target: str
+    relation: EdgeRelation
+
+
+class CompileDiff(Wire):
+    """What the agent actually changed.
+
+    This is the product's core differentiator — the compile step is shown, not
+    hidden, so a user can see and undo exactly what happened on every save.
+    """
+
+    run_id: uuid.UUID
+    raw_item_id: uuid.UUID
+    action: CompileAction
+    page: CompileDiffPage
+    claims_added: int = 0
+    claims_disputed: int = 0
+    sections_added: list[str] = Field(default_factory=list)
+    nodes_created: list[str] = Field(default_factory=list)
+    edges_created: list[CompileDiffEdge] = Field(default_factory=list)
+    gaps_raised: list[str] = Field(default_factory=list)
+    reasoning: str = ""
+
+
+class RunOut(Wire):
+    id: uuid.UUID
+    raw_item_id: uuid.UUID
+    status: RunStatus
+    diff: dict[str, Any] | None = None
+    error: str | None = None
+    created_at: dt.datetime
+    finished_at: dt.datetime | None = None
+    item_title: str | None = None
+    source_url: str | None = None
+
+
+class GapOut(Wire):
+    id: uuid.UUID
+    question: str
+    reason: str
+    status: Literal["open", "dismissed", "filled"]
+    created_at: dt.datetime
+    node_label: str | None = None
+    node_slug: str | None = None
+
+
+# ─── internal: agent callback tools ──────────────────────────────────────────
+
+
+class EmbedRequest(Wire):
+    texts: Annotated[list[str], Field(min_length=1, max_length=32)]
+
+
+class EmbedResponse(Wire):
+    model: str
+    vectors: list[list[float]]
+
+
+class MatchRequest(Wire):
+    #: The run this match belongs to. The API derives the workspace from it
+    #: rather than accepting one, so the agent cannot search another tenant.
+    run_id: uuid.UUID
+    text: str
+    top_k: int = 5
+
+
+class PageCandidate(Wire):
+    page_id: uuid.UUID
+    slug: str
+    title: str
+    summary: str
+    similarity: float
+
+
+class MatchResponse(Wire):
+    candidates: list[PageCandidate] = Field(default_factory=list)
+    threshold: float
+
+
+class ExistingClaim(Wire):
+    id: uuid.UUID
+    text: str
+    section: str
+    status: ClaimStatus
+
+
+class PageClaimsResponse(Wire):
+    page_id: uuid.UUID
+    title: str
+    summary: str
+    sections: list[SectionOut] = Field(default_factory=list)
+    claims: list[ExistingClaim] = Field(default_factory=list)
+
+
+class ApplyClaim(Wire):
+    text: str
+    quote: str = ""
+    section: str = ""
+    confidence: float = 0.5
+    status: ClaimStatus = "asserted"
+    contradicts_claim_id: uuid.UUID | None = None
+
+
+class ApplyEdge(Wire):
+    source: str
+    target: str
+    relation: EdgeRelation = "related_to"
+    weight: float = 1.0
+
+
+class ApplyGap(Wire):
+    question: str
+    reason: str = ""
+    related_to: str = ""
+
+
+class ApplyCompileRequest(Wire):
+    """The single write the agent makes, applied in one transaction."""
+
+    run_id: uuid.UUID
+    raw_item_id: uuid.UUID
+    action: CompileAction
+    target_page_id: uuid.UUID | None = None
+    title: str
+    slug: str
+    summary: str
+    sections: list[SectionOut] = Field(default_factory=list)
+    claims: list[ApplyClaim] = Field(default_factory=list)
+    concepts: list[str] = Field(default_factory=list)
+    edges: list[ApplyEdge] = Field(default_factory=list)
+    gaps: list[ApplyGap] = Field(default_factory=list)
+    reasoning: str = ""
+
+
+class RunFailedRequest(Wire):
+    run_id: uuid.UUID
+    error: str
+    raw_output: str | None = None
+
+
+class RunStepRequest(Wire):
+    run_id: uuid.UUID
+    step: Literal["extract", "match", "compile", "link", "persist"]
+    detail: str = ""
+
+
+# ─── copilot ─────────────────────────────────────────────────────────────────
+
+
+class RetrievedClaimOut(Wire):
+    """A citable claim.
+
+    Carries the verbatim source quote, so an answer built on it can be checked
+    rather than trusted — which is the whole reason the copilot retrieves claims
+    instead of page prose.
+    """
+
+    claim_id: str
+    text: str
+    section: str
+    status: ClaimStatus
+    page_slug: str
+    page_title: str
+    quote: str
+    source_title: str | None = None
+    source_url: str | None = None
+
+
+class CopilotSearchResponse(Wire):
+    query: str
+    #: False when the embedding provider was unreachable and only lexical search
+    #: ran — the answer may be thinner than usual, and the UI can say so.
+    semantic: bool = True
+    claims: list[RetrievedClaimOut] = Field(default_factory=list)
+
+
+# ─── copilot conversations ───────────────────────────────────────────────────
+
+
+class CitationOut(Wire):
+    claim_id: str
+    page_slug: str
+    page_title: str
+
+
+class ChatMessageOut(Wire):
+    id: uuid.UUID
+    role: Literal["user", "assistant"]
+    content: str
+    citations: list[CitationOut] = Field(default_factory=list)
+    claims: list[RetrievedClaimOut] = Field(default_factory=list)
+    refused: bool = False
+    created_at: dt.datetime
+
+
+class ChatSessionOut(Wire):
+    id: uuid.UUID
+    title: str
+    created_at: dt.datetime
+    updated_at: dt.datetime
+    #: Shown in the session list so a thread reads as a conversation rather than
+    #: a row; omitted when listing many.
+    message_count: int = 0
+
+
+class ChatSessionDetailOut(ChatSessionOut):
+    messages: list[ChatMessageOut] = Field(default_factory=list)
+
+
+class CreateSessionRequest(Wire):
+    #: Optional: a session created from the composer names itself from the first
+    #: question instead.
+    title: str | None = None
+
+
+class AppendTurnRequest(Wire):
+    """One completed exchange, recorded after the agent has answered.
+
+    The question and the answer arrive together rather than as two calls: a
+    question stored without its answer would render as a thread that hangs, and
+    the agent already has both by the time it reports back.
+    """
+
+    question: str
+    answer: str
+    citations: list[CitationOut] = Field(default_factory=list)
+    claims: list[RetrievedClaimOut] = Field(default_factory=list)
+    refused: bool = False

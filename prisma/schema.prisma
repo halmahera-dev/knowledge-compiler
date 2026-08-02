@@ -1,0 +1,438 @@
+// Schema source of truth for the knowledge compiler.
+//
+// Prisma owns the schema and generates migrations. It does NOT own runtime data
+// access — the Python API (SQLAlchemy) is the only process that talks to the
+// database, per the boundary rule in the design. So there is no client generator
+// block here; this file exists purely to author migrations.
+//
+// Two Prisma limitations shape this file, both worked around deliberately:
+//
+//  1. Prisma has no VECTOR scalar type, so embedding columns are declared as
+//     `Unsupported("VECTOR(1024)")`. Prisma will create and drop the columns
+//     correctly but cannot read or write them — which is fine, since only
+//     SQLAlchemy touches them.
+//
+//  2. Prisma cannot express vector indexes at all, and `prisma migrate dev`
+//     deletes hand-added ones because it reads them as schema drift
+//     (pgvector/pgvector-node#18). The vector indexes therefore live in an
+//     append-only block at the end of each generated migration, and migrations
+//     are applied with `prisma migrate deploy` (which does not drift-check)
+//     rather than bare `migrate dev`. See `pnpm db:migrate`.
+
+// Prisma 7 moved connection URLs out of the schema — see prisma.config.ts.
+datasource db {
+  provider = "cockroachdb"
+}
+
+// ─── enums ───────────────────────────────────────────────────────────────────
+
+enum CaptureType {
+  paste
+  clip
+  link
+  pdf
+
+  @@map("capture_type")
+}
+
+enum ItemStatus {
+  pending
+  processing
+  compiled
+  failed
+
+  @@map("item_status")
+}
+
+enum RunStatus {
+  queued
+  running
+  succeeded
+  failed
+
+  @@map("run_status")
+}
+
+enum NodeKind {
+  topic
+  entity
+
+  @@map("node_kind")
+}
+
+enum GapStatus {
+  open
+  dismissed
+  filled
+
+  @@map("gap_status")
+}
+
+/// A claim becomes `disputed` when a later source contradicts it. The agent never
+/// overwrites a contradicted claim — it records both sides and lets the reader judge.
+enum ClaimStatus {
+  asserted
+  disputed
+  superseded
+
+  @@map("claim_status")
+}
+
+/// Which side of a disputed claim a given source sits on.
+enum SourceStance {
+  supports
+  contradicts
+
+  @@map("source_stance")
+}
+
+/// Typed edges carry meaning, unlike the weight-only edges competitors expose.
+enum EdgeRelation {
+  extends
+  contradicts
+  prerequisite_of
+  example_of
+  related_to
+
+  @@map("edge_relation")
+}
+
+
+// ─── workspace ───────────────────────────────────────────────────────────────
+
+/// A wiki inside a workspace.
+///
+/// `workspaceId` and `userId` are plain columns with NO foreign key: users and
+/// organizations are owned by Better Auth in the `auth` schema, and a FK across
+/// two independently-migrated owners would couple this schema to theirs.
+///
+/// A workspace holds many wikis, but ONE graph — concept nodes and edges are
+/// keyed on workspace, not wiki, so a connection can cross from work reading to
+/// personal research. That crossing is the product, not an accident.
+model Wiki {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("workspace_id")
+  name        String
+  slug        String
+  description String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  pages WikiPage[]
+  items RawItem[]
+
+  @@unique([workspaceId, slug], map: "wikis_workspace_slug_key")
+  @@index([workspaceId], map: "wikis_workspace_idx")
+  @@map("wikis")
+}
+
+// ─── capture ─────────────────────────────────────────────────────────────────
+
+/// One row per save, whichever of the three capture modes produced it.
+model RawItem {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String      @map("workspace_id")
+  wikiId      String      @map("wiki_id") @db.Uuid
+  /// Who saved it. Kept for attribution; scoping is by workspace.
+  userId      String      @map("user_id")
+  captureType CaptureType @map("capture_type")
+  sourceUrl   String?     @map("source_url")
+  title       String?
+  content     String
+
+  /// sha256 of normalized content — makes re-saving the same article a no-op
+  contentHash String @map("content_hash")
+
+  embedding      Unsupported("VECTOR(1024)")?
+  embeddingModel String?                      @map("embedding_model")
+
+  status    ItemStatus @default(pending)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  compileRuns  CompileRun[]
+  claimSources ClaimSource[]
+  pageSources  WikiPageSource[]
+  edges        GraphEdge[]
+
+  wiki Wiki @relation(fields: [wikiId], references: [id], onDelete: Cascade)
+
+  /// Dedupe is per WORKSPACE, not per user: two people in one workspace saving
+  /// the same article should produce one item, not two competing compiles.
+  @@unique([workspaceId, contentHash], map: "raw_items_workspace_content_hash_key")
+  @@index([workspaceId, createdAt(sort: Desc)], map: "raw_items_workspace_created_idx")
+  @@index([wikiId], map: "raw_items_wiki_idx")
+  @@map("raw_items")
+}
+
+// ─── wiki ────────────────────────────────────────────────────────────────────
+
+model WikiPage {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id")
+  wikiId      String @map("wiki_id") @db.Uuid
+  slug        String
+  title   String
+  summary String @default("")
+
+  embedding      Unsupported("VECTOR(1024)")?
+  embeddingModel String?                      @map("embedding_model")
+
+  /// Points at the live revision. Deliberately not a relation: WikiPage and
+  /// WikiPageRevision reference each other, and a plain nullable UUID avoids a
+  /// circular constraint that would make inserts order-dependent.
+  currentRevisionId String? @map("current_revision_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  revisions WikiPageRevision[]
+  claims    WikiClaim[]
+  sources   WikiPageSource[]
+  nodes     GraphNode[]
+
+  wiki Wiki @relation(fields: [wikiId], references: [id], onDelete: Cascade)
+
+  /// Slugs are unique per WIKI — two wikis in one workspace may each have a
+  /// "transformers" page about different things.
+  @@unique([wikiId, slug], map: "wiki_pages_wiki_slug_key")
+  @@index([workspaceId, updatedAt(sort: Desc)], map: "wiki_pages_workspace_updated_idx")
+  @@map("wiki_pages")
+}
+
+/// Every compile writes a new revision instead of mutating the page. That is what
+/// makes history browsing and undo possible.
+model WikiPageRevision {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId     String @map("page_id") @db.Uuid
+  revisionNo Int    @map("revision_no")
+  title      String
+  summary    String @default("")
+
+  /// ordered sections: [{heading, body}]
+  body Json @default("[]")
+
+  /// the CompileDiff that produced this revision, replayed in the activity feed
+  diff Json @default("{}")
+
+  compileRunId String?  @map("compile_run_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  page   WikiPage    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  claims WikiClaim[]
+
+  @@unique([pageId, revisionNo], map: "wiki_page_revisions_page_no_key")
+  @@index([pageId, revisionNo(sort: Desc)], map: "wiki_page_revisions_page_idx")
+  @@map("wiki_page_revisions")
+}
+
+/// Claims are scoped to a revision, so reverting a page restores its exact claim
+/// set with no separate bookkeeping.
+model WikiClaim {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageId     String      @map("page_id") @db.Uuid
+  revisionId String      @map("revision_id") @db.Uuid
+  section    String      @default("")
+  position   Int         @default(0)
+  text       String
+  status     ClaimStatus @default(asserted)
+  confidence Float       @default(0.5)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  page     WikiPage         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  revision WikiPageRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  sources  ClaimSource[]
+
+  @@index([revisionId, position], map: "wiki_claims_revision_idx")
+  @@map("wiki_claims")
+}
+
+/// Provenance: the verbatim span of the source that produced a claim. This is what
+/// lets the wiki show where a sentence came from instead of asking the reader to
+/// trust the model.
+model ClaimSource {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  claimId   String       @map("claim_id") @db.Uuid
+  rawItemId String       @map("raw_item_id") @db.Uuid
+  quote     String       @default("")
+  charStart Int?         @map("char_start")
+  charEnd   Int?         @map("char_end")
+  stance    SourceStance @default(supports)
+
+  claim   WikiClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  rawItem RawItem   @relation(fields: [rawItemId], references: [id], onDelete: Cascade)
+
+  @@index([claimId], map: "claim_sources_claim_idx")
+  @@index([rawItemId], map: "claim_sources_item_idx")
+  @@map("claim_sources")
+}
+
+/// Page-level bibliography, rendered in the marginalia rail.
+model WikiPageSource {
+  pageId      String   @map("page_id") @db.Uuid
+  rawItemId   String   @map("raw_item_id") @db.Uuid
+  firstSeenAt DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+
+  page    WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  rawItem RawItem  @relation(fields: [rawItemId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, rawItemId])
+  @@map("wiki_page_sources")
+}
+
+// ─── graph ───────────────────────────────────────────────────────────────────
+
+model GraphNode {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String  @map("workspace_id")
+  wikiPageId String?  @map("wiki_page_id") @db.Uuid
+  label      String
+  kind       NodeKind @default(topic)
+
+  /// how much saved content touches this topic; drives node radius (PRD §6.4)
+  weight Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  page          WikiPage?       @relation(fields: [wikiPageId], references: [id], onDelete: Cascade)
+  outgoingEdges GraphEdge[]     @relation("EdgeSource")
+  incomingEdges GraphEdge[]     @relation("EdgeTarget")
+  gaps          KnowledgeGap[]
+
+  /// One node per concept per WORKSPACE. This is what lets an edge join a page
+  /// in one wiki to a page in another.
+  @@unique([workspaceId, label], map: "graph_nodes_workspace_label_key")
+  @@index([wikiPageId], map: "graph_nodes_page_idx")
+  @@map("graph_nodes")
+}
+
+model GraphEdge {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId       String       @map("workspace_id")
+  sourceNodeId      String       @map("source_node_id") @db.Uuid
+  targetNodeId      String       @map("target_node_id") @db.Uuid
+  relation          EdgeRelation @default(related_to)
+  weight            Float        @default(1.0)
+  evidenceRawItemId String?      @map("evidence_raw_item_id") @db.Uuid
+
+  /// Undo works by withdrawing everything a run created, so each edge remembers
+  /// its author run and is soft-deleted rather than removed.
+  createdByRunId String?   @map("created_by_run_id") @db.Uuid
+  withdrawnAt    DateTime? @map("withdrawn_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  source   GraphNode @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  target   GraphNode @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  evidence RawItem?  @relation(fields: [evidenceRawItemId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceNodeId, targetNodeId, relation], map: "graph_edges_triple_key")
+  @@index([workspaceId], map: "graph_edges_workspace_idx")
+  @@index([createdByRunId], map: "graph_edges_run_idx")
+  @@map("graph_edges")
+}
+
+// ─── agent runs ──────────────────────────────────────────────────────────────
+
+model CompileRun {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  rawItemId   String    @map("raw_item_id") @db.Uuid
+  status      RunStatus @default(queued)
+  mastraRunId String?   @map("mastra_run_id")
+
+  /// the structured CompileDiff surfaced in the activity feed
+  diff Json?
+
+  error String?
+
+  /// raw model output kept when a step fails schema validation, so a bad compile
+  /// is diagnosable instead of just "failed"
+  rawOutput String? @map("raw_output")
+
+  startedAt  DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  rawItem RawItem @relation(fields: [rawItemId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)], map: "compile_runs_workspace_created_idx")
+  @@index([rawItemId], map: "compile_runs_item_idx")
+  @@map("compile_runs")
+}
+
+/// "You've read a lot about X but never its prerequisite Y."
+model KnowledgeGap {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String  @map("workspace_id")
+  nodeId    String?   @map("node_id") @db.Uuid
+  question  String
+  reason    String    @default("")
+  status    GapStatus @default(open)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  node GraphNode? @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, question], map: "knowledge_gaps_workspace_question_key")
+  @@index([workspaceId, status, createdAt(sort: Desc)], map: "knowledge_gaps_workspace_status_idx")
+  @@map("knowledge_gaps")
+}
+
+// ─── Copilot conversations ───────────────────────────────────────────────────
+
+/// One thread of questions against a workspace's compiled knowledge.
+///
+/// Scoped to a workspace, not to a user: the thing being asked about is the
+/// workspace's wiki, so a session belongs where its evidence does. `userId`
+/// records who started it, for attribution rather than access.
+model ChatSession {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id")
+  userId      String @map("user_id")
+
+  /// Derived from the first question, so the list reads as a set of topics
+  /// rather than a set of timestamps.
+  title String @default("New conversation")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  messages ChatMessage[]
+
+  @@index([workspaceId, updatedAt(sort: Desc)], map: "chat_sessions_workspace_updated_idx")
+  @@map("chat_sessions")
+}
+
+/// A single turn. Questions and answers share a table so ordering is one column.
+model ChatMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  role      ChatRole
+  content   String
+
+  /// Claims the answer cited, denormalised so the thread renders without
+  /// re-running retrieval — and so a citation survives the page being edited.
+  citations Json?
+
+  /// Everything retrieval surfaced for this turn, cited or not. Kept because
+  /// "12 consulted, 6 cited" is what makes an answer auditable.
+  claims Json?
+
+  /// True when the copilot declined: no evidence, or nothing it would stand behind.
+  refused Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt], map: "chat_messages_session_created_idx")
+  @@map("chat_messages")
+}
+
+enum ChatRole {
+  user
+  assistant
+
+  @@map("chat_role")
+}
