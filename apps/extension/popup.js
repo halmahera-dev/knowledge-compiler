@@ -2,11 +2,11 @@
  * Popup logic: extract the active tab, POST it, report what happened.
  *
  * The extension stays thin on purpose (HLD §3.2) — it extracts and submits, and
- * all compilation happens server-side. Everything it knows about the result comes
- * back from the API.
+ * all compilation happens server-side. Token minting and posting live in
+ * `save.js` because the context menu needs exactly the same thing, and two
+ * copies of an auth path is one too many.
  */
-const DEFAULT_API = "http://localhost:8000";
-const DEFAULT_APP = "http://localhost:3000";
+import { DEFAULT_API, DEFAULT_APP, NOT_SIGNED_IN, getBases, saveItem } from "./save.js";
 
 const titleEl = document.getElementById("title");
 const metaEl = document.getElementById("meta");
@@ -15,57 +15,13 @@ const statusEl = document.getElementById("status");
 const apiEl = document.getElementById("api");
 const appEl = document.getElementById("app");
 
+/** What the current tab yielded, filled in by `loadPage`. */
 let extracted = null;
 let metadata = null;
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message;
   statusEl.className = kind;
-}
-
-async function getApiBase() {
-  const stored = await chrome.storage.sync.get("apiBase");
-  return stored.apiBase || DEFAULT_API;
-}
-
-async function getAppBase() {
-  const stored = await chrome.storage.sync.get("appBase");
-  return stored.appBase || DEFAULT_APP;
-}
-
-/**
- * Borrows a workspace-scoped token from the app's session.
- *
- * The extension deliberately has no login of its own. It sends the app's session
- * cookie (`credentials: "include"`, which needs the app's origin in
- * `host_permissions`) and lets Better Auth mint a short-lived JWT — so the
- * extension never sees a password, stores no long-lived credential, and clips
- * into whichever workspace the app currently has open.
- *
- * The app must list this extension's origin in BETTER_AUTH_TRUSTED_ORIGINS, or
- * the mint is refused as cross-origin.
- */
-async function mintToken(appBase) {
-  let response;
-  try {
-    response = await fetch(`${appBase}/api/auth/token`, { credentials: "include" });
-  } catch {
-    throw new Error(`Could not reach the app at ${appBase}. Is it running?`);
-  }
-
-  if (response.status === 401 || response.status === 404) {
-    throw new Error("NOT_SIGNED_IN");
-  }
-  if (response.status === 403) {
-    throw new Error(
-      "The app refused this extension. Add its id to BETTER_AUTH_TRUSTED_ORIGINS and restart the app.",
-    );
-  }
-  if (!response.ok) throw new Error(`Could not get a token (${response.status}).`);
-
-  const body = await response.json().catch(() => ({}));
-  if (!body.token) throw new Error("NOT_SIGNED_IN");
-  return body.token;
 }
 
 async function loadPage() {
@@ -127,75 +83,57 @@ async function save() {
   saveEl.disabled = true;
   setStatus("Saving…");
 
-  const base = (apiEl.value || DEFAULT_API).replace(/\/$/, "");
-  const appBase = (appEl.value || DEFAULT_APP).replace(/\/$/, "");
-  await chrome.storage.sync.set({ apiBase: base, appBase });
+  await chrome.storage.sync.set({
+    apiBase: (apiEl.value || DEFAULT_API).replace(/\/$/, ""),
+    appBase: (appEl.value || DEFAULT_APP).replace(/\/$/, ""),
+  });
 
   try {
-    const token = await mintToken(appBase);
-
-    const response = await fetch(`${base}/api/v1/items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        captureType: "clip",
-        content: extracted.text,
-        sourceUrl: metadata?.canonicalUrl || extracted.url,
-        title: metadata?.title || extracted.title,
-      }),
+    const result = await saveItem({
+      captureType: "clip",
+      content: extracted.text,
+      sourceUrl: metadata?.canonicalUrl || extracted.url,
+      title: metadata?.title || extracted.title,
     });
 
-    // A token was minted a moment ago, so a 401 here means it was rejected —
-    // clock skew, or the app and API disagreeing about the issuer.
-    if (response.status === 401) {
-      throw new Error("The API rejected the app's token. Check BETTER_AUTH_URL matches.");
-    }
-    if (response.status === 409) {
-      throw new Error("No workspace is selected. Open the app and choose one.");
-    }
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.detail || `API returned ${response.status}`);
-    }
-
-    const result = await response.json();
     if (result.duplicate) {
-      setStatus("Already saved — nothing to recompile.", "ok");
+      const matched = result.duplicateOf?.title;
+      setStatus(
+        matched ? `Already saved as “${matched}”.` : "Already saved — nothing to recompile.",
+        "ok",
+      );
     } else {
       setStatus("Saved. Compiling in the app…", "ok");
     }
   } catch (error) {
     const message = String(error?.message ?? error);
 
-    if (message === "NOT_SIGNED_IN") {
-      // Actionable rather than descriptive: the fix is one click away, so offer
-      // the click instead of describing it.
+    if (message === NOT_SIGNED_IN) {
+      // Actionable rather than descriptive: the fix is one click away.
       setStatus("", "err");
-      statusEl.append("Sign in to the app, then clip again. ");
+      statusEl.append("Sign in to the app, then save again. ");
       const link = document.createElement("a");
       link.href = "#";
       link.textContent = "Open the app";
-      link.addEventListener("click", (event) => {
+      link.addEventListener("click", async (event) => {
         event.preventDefault();
-        chrome.tabs.create({ url: `${appBase}/signin` });
+        const { app } = await getBases();
+        chrome.tabs.create({ url: `${app}/signin` });
       });
       statusEl.append(link);
       saveEl.disabled = false;
       return;
     }
 
-    // The next most common cause is the API not running, so name it.
-    setStatus(
-      message.includes("Failed to fetch") ? `Could not reach ${base}. Is the API running?` : message,
-      "err",
-    );
+    setStatus(message, "err");
     saveEl.disabled = false;
   }
 }
 
 (async () => {
-  apiEl.value = await getApiBase();
-  appEl.value = await getAppBase();
+  const bases = await getBases();
+  apiEl.value = bases.api;
+  appEl.value = bases.app;
   saveEl.addEventListener("click", save);
   await loadPage();
 })();

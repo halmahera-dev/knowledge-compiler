@@ -1,10 +1,34 @@
 # Browser extension
 
-One-click clipping of the page you're reading into the knowledge base.
+Saving what you're reading into the knowledge base, from the toolbar or the
+right-click menu.
 
 Thin by design (HLD §3.2): it extracts readable text and POSTs it. All
 compilation happens server-side, so there is no build step and no bundler — the
 directory loads as-is.
+
+## Two ways to save
+
+**Right-click** is the one that matters. You are reading a thread, one comment is
+worth keeping, and opening a popup to paste it back in defeats the point:
+
+| Right-click on | Saves |
+| --- | --- |
+| A **selection** | Just that passage, titled from its opening words |
+| The **page** | The readable article, extracted in the browser |
+| A **link** | The URL, fetched and extracted server-side |
+
+**The toolbar button** opens the popup, which previews what it found — title,
+length, author, whether the page looks paywalled — before you commit. Use it when
+you want to check before saving a whole article.
+
+Either way the clip lands in **the workspace currently open in the app**, under
+the account signed in there. The extension holds no state about either, so there
+is nothing to get out of sync: it asks the app for a token at the moment of
+saving, and the workspace comes back inside it.
+
+Results arrive as a badge on the icon and a notification — a save with no sign of
+having happened is one people repeat.
 
 ## Install
 
@@ -32,15 +56,21 @@ The popup's two fields — **API** (`http://localhost:8000`) and **App**
 
 | File | Role |
 | --- | --- |
-| `manifest.json` | Manifest V3 declaration. `activeTab` + `scripting` only — no persistent host access. |
+| `manifest.json` | Manifest V3 declaration. |
+| `background.js` | Service worker: registers the context menus and handles their clicks. |
+| `save.js` | Token minting and posting, shared by the popup and the menu — two copies of an auth path is one too many. |
 | `extract.js` | Injected on demand; picks the densest article-like container and strips chrome. |
+| `metadata.js` | Structured-data pass; see [Metadata](#metadata). |
 | `popup.html` | Popup UI, styled to match the web app's paper/ink tokens. |
-| `popup.js` | Extract → POST → report. |
+| `popup.js` | Preview → save → report. |
 
 ## Permissions
 
-`activeTab` and `scripting` are granted only for the tab you explicitly clip, and
-only when you open the popup — the extension cannot read pages in the background.
+`activeTab` and `scripting` are granted only for the tab you act on, and only on
+a click — opening the popup or choosing a context-menu item. The extension cannot
+read pages in the background. `contextMenus` adds the right-click entries;
+`notifications` is how a background save reports back, since there is no popup
+open to report into.
 `host_permissions` covers exactly two origins: the API it posts to, and the app it
 borrows a session from.
 
@@ -49,12 +79,10 @@ To point at a deployed API or app, add those origins to `host_permissions` in
 
 ## Icon
 
-No icon is declared, so the browser uses its default. To add one, drop a 128×128
-PNG here and add to `manifest.json`:
-
-```json
-"icons": { "128": "icon.png" }
-```
+`icon-{16,32,48,128}.png` — three rules that shorten downward, for sources
+converging into one compiled line. Drawn at 8× and downsampled, because at 16px
+the difference between a mark and a smudge is entirely in the antialiasing.
+Regenerate them by editing the generator in the commit that added them.
 
 ## Metadata
 
