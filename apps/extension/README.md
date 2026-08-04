@@ -52,11 +52,55 @@ origin it does not know, so every save fails at the mint.
 The popup's two fields — **API** (`http://localhost:8000`) and **App**
 (`http://localhost:3000`) — are remembered across sessions.
 
+## Going to production
+
+Four things change, and one of them fails silently if missed.
+
+**1. The extension id changes.** Loaded unpacked, the id is derived from the
+folder path; packed or published, it comes from a signing key. So the id you put
+in `BETTER_AUTH_TRUSTED_ORIGINS` during development is *not* the production id,
+and a mismatch means every save is refused at the token mint.
+
+Pick one:
+
+- **Pin it** — add a `"key"` field (base64 DER public key) to `manifest.json`.
+  The id is then the same unpacked, packed, and self-hosted. Keep the private key
+  somewhere safe and out of the repo; losing it changes the id again.
+- **Publish first** — upload to the Chrome Web Store, take the id it assigns, and
+  set the production env to that.
+
+The extension now names the id in the error when this happens, so the fix is
+visible rather than guessed at.
+
+**2. `config.js`** — set `DEFAULT_API` and `DEFAULT_APP` to the deployed URLs, so
+nobody has to type them into the popup on first use.
+
+**3. `manifest.json` → `host_permissions`** — add the same two origins. The
+manifest cannot read `config.js`, and without this Chrome blocks the request
+before it is made. Drop the localhost entries unless you still develop against
+them.
+
+**4. Production environment** — on the server:
+
+| Variable | Value |
+| --- | --- |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | `chrome-extension://<production id>` |
+| `BETTER_AUTH_URL` | the deployed app URL; it becomes the token's `iss`, which the API verifies |
+| `CORS_ORIGINS` | the deployed web origin |
+| `INTERNAL_API_TOKEN` | a real secret, never the published default |
+
+The API accepts any `chrome-extension://` origin by regex, which is safe on its
+own: it authenticates by bearer token, and issuing that token is what the
+allowlist above controls.
+
+---
+
 ## Files
 
 | File | Role |
 | --- | --- |
 | `manifest.json` | Manifest V3 declaration. |
+| `config.js` | The two URLs this build points at — one file to edit per deployment. |
 | `background.js` | Service worker: registers the context menus and handles their clicks. |
 | `save.js` | Token minting and posting, shared by the popup and the menu — two copies of an auth path is one too many. |
 | `extract.js` | Injected on demand; picks the densest article-like container and strips chrome. |
@@ -118,16 +162,12 @@ The API (port 8000) accepts any `chrome-extension://` origin by regex, which is
 fine on its own: it authenticates by bearer token, and the token is what the
 allowlist above controls.
 
-### Verified, and not
+### Verified
 
-Verified end to end over HTTP: a listed origin mints a token and clips
-successfully (202); an unlisted origin gets no CORS header; a session with no
-active workspace gets a 409 the popup renders as "No workspace is selected".
+A listed origin mints a token and clips successfully; an unlisted origin gets no
+CORS header and is told so by id; a session with no active workspace gets a 409
+rendered as "No workspace is selected".
 
-**Not verified in a real browser:** whether Chrome sends the app's session cookie
-on the extension's cross-origin fetch. The cookie is `SameSite=Lax`, and although
-extensions holding `host_permissions` for the origin are normally allowed to send
-it, this could not be exercised here — loading an unpacked extension was not
-possible in the development environment. If clipping reports you are signed out
-while the app clearly is not, that is the thing to check first; the fix is to set
-`SameSite=None; Secure` on the session cookie in `apps/web/src/lib/auth.ts`.
+Chrome does send the app's session cookie on the extension's cross-origin fetch —
+confirmed by running it. The `SameSite=Lax` concern noted here previously does not
+apply.

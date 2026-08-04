@@ -9,8 +9,8 @@
  * about either.
  */
 
-export const DEFAULT_API = "http://localhost:8000";
-export const DEFAULT_APP = "http://localhost:3000";
+export { DEFAULT_API, DEFAULT_APP } from "./config.js";
+import { DEFAULT_API, DEFAULT_APP } from "./config.js";
 
 /** Thrown when there is no session to borrow. Handled, not displayed raw. */
 export const NOT_SIGNED_IN = "NOT_SIGNED_IN";
@@ -21,6 +21,22 @@ export async function getBases() {
     api: (stored.apiBase || DEFAULT_API).replace(/\/$/, ""),
     app: (stored.appBase || DEFAULT_APP).replace(/\/$/, ""),
   };
+}
+
+/** Tells "app is down" apart from "app does not trust this extension". */
+async function diagnose(appBase) {
+  try {
+    await fetch(`${appBase}/api/auth/token`, { mode: "no-cors", credentials: "include" });
+  } catch {
+    return `Could not reach the app at ${appBase}. Is it running?`;
+  }
+
+  const id = chrome.runtime?.id;
+  return [
+    "The app is running but will not issue a token to this extension.",
+    id ? `Add chrome-extension://${id} to BETTER_AUTH_TRUSTED_ORIGINS` : "Set BETTER_AUTH_TRUSTED_ORIGINS",
+    "and restart it.",
+  ].join(" ");
 }
 
 /**
@@ -36,7 +52,13 @@ export async function mintToken(appBase) {
   try {
     response = await fetch(`${appBase}/api/auth/token`, { credentials: "include" });
   } catch {
-    throw new Error(`Could not reach the app at ${appBase}. Is it running?`);
+    // A blocked CORS response and an unreachable server both surface here as the
+    // same opaque TypeError, and guessing wrong sends you to check the wrong
+    // thing. `no-cors` needs no permission from the app, so if that succeeds the
+    // app is plainly up and the mint was refused for this origin — which is what
+    // happens whenever the extension id is not the one the app was told about,
+    // and the id changes the moment the extension is repacked.
+    throw new Error(await diagnose(appBase));
   }
 
   if (response.status === 401 || response.status === 404) throw new Error(NOT_SIGNED_IN);

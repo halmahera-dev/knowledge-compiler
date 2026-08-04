@@ -21,6 +21,7 @@ import {
   type ChatSessionDetail,
 } from "~/lib/api";
 import { askCopilot } from "~/lib/copilot";
+import { renderMarkdown } from "~/lib/markdown";
 import { requireSession } from "~/lib/guards";
 import { titleHead } from "~/lib/head";
 
@@ -276,10 +277,11 @@ function Turn({ message }: { message: ChatMessage }) {
         </p>
       )}
 
+      {/* Markdown, with the citation markers inside it turned into links. Plain
+          paragraphs left `**bold**` as literal asterisks and ran a whole list
+          together on one line. */}
       <div className="prose-read text-ink">
-        {message.content.split(/\n{2,}/).map((paragraph, i) => (
-          <p key={i}>{paragraph}</p>
-        ))}
+        {renderMarkdown(message.content, message.citations)}
       </div>
 
       {message.claims.length > 0 && (
