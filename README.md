@@ -101,6 +101,86 @@ half-updated, and it makes each pipeline stage testable on its own.
 
 ---
 
+## Which CockroachDB and AWS tools this uses
+
+Named against the code that uses them, rather than in the abstract.
+
+### CockroachDB
+
+| Tool | Where | What it does here |
+| --- | --- | --- |
+| **Distributed vector indexing** | [`matching.py`](apps/api/app/services/matching.py), [`retrieval.py`](apps/api/app/services/retrieval.py), `prisma/migrations/*/migration.sql` | Native `VECTOR(1024)` columns on `raw_items` and `wiki_pages`, with `CREATE VECTOR INDEX` on both and cosine (`<=>`) k-NN over them. |
+| **ccloud CLI** | [`scripts/ccloud.mjs`](scripts/ccloud.mjs) — `pnpm ccloud` | Six commands over the Cloud control plane: cluster health, connection string, IP allowlist, migrations, backup retention. |
+| **Cloud Managed MCP Server** | [`.mcp.json`](.mcp.json) | Connects an MCP client to the cluster, so the agent can read schemas, inspect running queries, and run read-only SQL against the live database. |
+
+The fourth tool, the Agent Skills repo, is not used.
+
+**The vector index sits on the write path, which is the whole point.** Most
+projects reach for a vector index at read time — embed the question, retrieve
+neighbours, answer. Here `matching.py` runs its k-NN *while compiling a save*, to
+decide whether what you just captured belongs to a page that already exists. That
+single query is what makes the knowledge base self-organizing rather than a pile
+of documents: the merge decision happens once, at write time, and every later
+read is a plain indexed lookup of already-compiled prose.
+
+`retrieval.py` then uses the same index the ordinary way, to ground the copilot.
+Two different jobs, one index — and the threshold differs per embedding provider
+because the models disagree about what a score means (see [Configuration](#configuration)).
+
+### AWS
+
+| Service | Where | What it does here |
+| --- | --- | --- |
+| **Amazon Bedrock** (Mantle) | [`apps/agent/src/mastra/config.ts`](apps/agent/src/mastra/config.ts) | `zai.glm-5` drives every reasoning step — extract, match, compile, link — and the copilot's answers. |
+| **Amazon Bedrock** (`bedrock-runtime`) | [`apps/api/app/embeddings.py`](apps/api/app/embeddings.py) | Cohere Embed v4 via `global.cohere.embed-v4:0` produces every 1024-dim vector the index above stores. |
+
+Bedrock is reached two different ways because Mantle has no `/v1/embeddings`
+endpoint; embeddings go through `bedrock-runtime` over boto3. One Bedrock API key
+is valid for both, which is why the required block in `.env` has a single key.
+
+Object storage for PDFs and other unstructured uploads goes through the S3 API
+via boto3 ([`storage.py`](apps/api/app/services/storage.py)), configured by
+`S3_ENDPOINT_URL`. Local development points that at MinIO; moving to Amazon S3
+means dropping `S3_ENDPOINT_URL` and setting a real `S3_REGION`, with no code
+change. **It points at MinIO by default, so treat S3 as compatible-and-ready
+rather than as a service this currently depends on** — the AWS requirement is met
+by Bedrock, twice over.
+
+### Connecting the MCP server
+
+[`.mcp.json`](.mcp.json) is checked in and holds no secret. Claude Code, Cursor,
+or any MCP client picks it up from the repo root:
+
+```json
+{
+  "mcpServers": {
+    "cockroachdb-cloud": {
+      "type": "http",
+      "url": "https://cockroachlabs.cloud/mcp"
+    }
+  }
+}
+```
+
+No credentials appear in the file because the endpoint advertises OAuth 2.1
+(`mcp:read` and `mcp:write` scopes, discovered from
+`/.well-known/oauth-protected-resource/mcp`), so the client runs the browser flow
+on first use and stores the token itself. You need **Cluster Admin** or **Cluster
+Operator** on the target cluster.
+
+For an autonomous pipeline with no browser, use a service account key instead and
+add the header — keeping the key in the environment, never in the file:
+
+```json
+"headers": { "Authorization": "Bearer ${CC_API_KEY}" }
+```
+
+Write tools (`create_database`, `create_table`, `insert_rows`) are off unless
+explicitly enabled, and destructive SQL is not exposed at all — so this cannot
+drop the `public` schema this database shares with an unrelated project.
+
+---
+
 ## Getting started
 
 Requires Node 20.19+, Python 3.11+, [uv](https://docs.astral.sh/uv/), Docker, and pnpm.
@@ -293,18 +373,25 @@ limiter fails open and logs — losing the ceiling is preferable to losing the A
 pnpm test
 ```
 
-Runs both suites — vitest across `web` and `agent`, then pytest for the API. Run
-one at a time with `pnpm test:ts` or `pnpm api:test`.
+Runs all three — vitest across `web` and `agent`, Node's built-in runner over
+`scripts/`, then pytest for the API. One at a time with `pnpm test:ts`,
+`pnpm test:scripts`, or `pnpm api:test`.
 
 **Python** covers content-hash dedupe, the connection-URL rewrite, the config
 derivations above, SSRF guards on saved links, provider selection order, PDF
 extraction and chunking, workspace scoping, which run states may be retried, and
 the zero-padding property the local embedding fallback depends on.
 
-**TypeScript** covers the two pure functions that carry the most risk per line:
+**TypeScript** covers the pure functions that carry the most risk per line:
 citation resolution in the copilot (an answer's grounding is only as good as the
-labels it parses) and tab-strip keyboard navigation (`role="tab"` promises arrow
-keys work). Both had shipped bugs; the tests were written against the failures.
+labels it parses), Markdown rendering (built as React elements, never an HTML
+string, so nothing the model emits can inject markup), redirect and URL guards,
+graph phrasing, and tab-strip keyboard navigation (`role="tab"` promises arrow
+keys work). Most were written against a shipped bug rather than ahead of one.
+
+**Scripts** covers the connection-string rewrite in `pnpm ccloud`, where being
+wrong is silent: Cloud also returns a `/<cluster>.<database>` path, and replacing
+the whole segment migrates against the wrong cluster without complaint.
 
 ---
 
@@ -320,7 +407,8 @@ packages/
   contracts/   Shared zod schemas
   tsconfig/    Shared TypeScript config
 prisma/        Schema and migrations
-scripts/       db:up and migration tooling
+scripts/       db:up, migration tooling, and the ccloud workflow
+.mcp.json      CockroachDB Cloud MCP server, for any MCP client
 ```
 
 ---
