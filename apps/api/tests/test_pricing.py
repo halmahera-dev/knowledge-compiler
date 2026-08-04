@@ -126,6 +126,14 @@ class TestForgivingMatch:
         module = priced('{"cohere-embed-v4":{"input":0.12}}')
         assert module.estimate_usd("zai.glm-5", 1_000_000, 0) is None
 
+    def test_an_adopted_model_keeps_its_marker_and_still_prices(self, priced):
+        # `reprice --assume-agent-model` stores "zai.glm-5 (assumed)" so the
+        # assumption stays visible on screen. If the matcher were tightened to
+        # exact-only, adoption would silently stop pricing anything and the
+        # marker would be the only thing left of the feature.
+        module = priced('{"zai.glm-5":{"input":1.0,"output":3.0}}')
+        assert module.estimate_usd("zai.glm-5 (assumed)", 1_000_000, 1_000_000) == Decimal(4)
+
     def test_backfilled_rows_stay_unknown(self, priced):
         # `unknown` must never accidentally match a configured name — those rows
         # predate the log and there is genuinely no rate for them.

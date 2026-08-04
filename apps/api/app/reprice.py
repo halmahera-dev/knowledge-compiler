@@ -12,10 +12,20 @@ restate what last month cost. The price of that choice is this command: setting
 a rate for the first time leaves everything already recorded reading as unknown
 until you run it.
 
-Rows whose model is ``unknown`` stay unknown, and no flag will change that. They
-came from the backfill, which reconstructed calls made before the log existed;
-nothing recorded which model ran them, so there is no rate to look up. Their
-value is the relative size of each step, not the money.
+Rows whose model is ``unknown`` came from the backfill, which reconstructed
+calls made before the log existed. Nothing recorded which model ran them, so
+there is no rate to look up and they price as unknown.
+
+They can be adopted, but only by saying so out loud::
+
+    uv run python -m app.reprice --assume-agent-model zai.glm-5 --write
+
+Every one of them was made by the agent, and the agent has a single configured
+model — so in practice they almost certainly all ran on it. Almost certainly is
+not recorded fact, though, and the difference matters when the number is money.
+So it is opt-in, the operator names the model rather than the tool inferring it,
+and the row is stored as ``zai.glm-5 (assumed)`` — which still matches the
+configured rate, and still says on the screen that somebody assumed it.
 """
 
 from __future__ import annotations
@@ -28,21 +38,34 @@ from sqlalchemy import select
 
 from .db import session_scope
 from .models import AiUsageEvent
-from .pricing import PRICES, estimate_usd
+from .pricing import PRICES, UNKNOWN_MODEL, estimate_usd
+from .services.usage import AGENT
+
+#: Appended to an adopted model id, so the assumption survives on screen. The
+#: fuzzy matcher ignores punctuation, so the configured rate still applies.
+ASSUMED = " (assumed)"
 
 
-async def reprice(write: bool) -> Counter:
+async def reprice(write: bool, assume_agent_model: str | None = None) -> Counter:
     counts: Counter = Counter()
 
     async with session_scope() as db:
         rows = (await db.execute(select(AiUsageEvent))).scalars().all()
 
         for row in rows:
-            fresh = estimate_usd(row.model, row.input_tokens, row.output_tokens)
+            model = row.model
+
+            if assume_agent_model and model == UNKNOWN_MODEL and row.service == AGENT:
+                model = f"{assume_agent_model}{ASSUMED}"
+                counts["adopted"] += 1
+                if write:
+                    row.model = model
+
+            fresh = estimate_usd(model, row.input_tokens, row.output_tokens)
 
             if fresh is None:
                 counts["still unpriced"] += 1
-                counts[f"  no rate for {row.model}"] += 1
+                counts[f"  no rate for {model}"] += 1
                 continue
 
             # Compared as Decimal, not float: the column is DECIMAL(14,10) and a
@@ -64,6 +87,14 @@ async def reprice(write: bool) -> Counter:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="apply the new costs")
+    parser.add_argument(
+        "--assume-agent-model",
+        metavar="MODEL",
+        help=(
+            "adopt backfilled agent rows as having run on MODEL. Stored with an "
+            "'(assumed)' marker, because it is your assertion and not a record."
+        ),
+    )
     args = parser.parse_args()
 
     if not PRICES:
@@ -73,11 +104,13 @@ def main() -> None:
         print()
         return
 
-    counts = asyncio.run(reprice(args.write))
+    counts = asyncio.run(reprice(args.write, args.assume_agent_model))
 
     print()
     print("  Repriced" if args.write else "  Dry run — nothing written")
     print(f"  Using rates for: {', '.join(sorted(PRICES))}")
+    if args.assume_agent_model:
+        print(f"  Adopting backfilled agent rows as: {args.assume_agent_model} (assumed)")
     print()
     for key in sorted(counts):
         print(f"    {key:34} {counts[key]:>6}")
