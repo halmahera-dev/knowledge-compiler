@@ -27,8 +27,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import re
 from decimal import Decimal
+
+from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +41,16 @@ PER_MILLION = Decimal(1_000_000)
 def _load() -> dict[str, dict[str, Decimal]]:
     """Reads AI_PRICING, tolerating anything malformed.
 
+    Read through Settings rather than ``os.getenv``: .env is loaded by
+    pydantic-settings, which does not export anything into the process
+    environment. ``os.getenv`` returned nothing for a value plainly present in
+    .env, and the only symptom was cost staying unknown forever.
+
     A broken price list must not stop the API booting: usage recording is
     observability, and observability that takes the product down with it when
     misconfigured has cost more than it saved.
     """
-    raw = os.getenv("AI_PRICING", "").strip()
+    raw = (get_settings().ai_pricing or "").strip()
     if not raw:
         return {}
 
@@ -81,6 +88,57 @@ def _load() -> dict[str, dict[str, Decimal]]:
 PRICES = _load()
 
 
+def _key(text: str) -> str:
+    """Strips everything but letters and digits, lowercased."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+#: What the backfill writes when nothing recorded which model ran a call. Our
+#: own sentinel, not a model name, so it must never match a configured rate.
+UNKNOWN_MODEL = "unknown"
+
+#: Shortest configured name allowed to match as a substring.
+#:
+#: Without a floor, a one- or two-letter entry matches almost every id — a key
+#: of "n" priced every `unknown` row in the table. Four still admits "gpt4",
+#: which is about as terse as a real model name gets.
+MIN_FUZZY_KEY = 4
+
+
+def rates_for(model: str) -> dict[str, Decimal] | None:
+    """The configured rates for a model id, matched forgivingly.
+
+    Exact first. Failing that, a configured name that survives as a substring
+    once both sides are reduced to letters and digits.
+
+    That fallback exists because the ids stored here are not the ids anyone
+    would think to write down. An embedding row records
+    ``bedrock:global.cohere.embed-v4:0@ap-southeast-3`` — prefix, inference
+    profile, region and all — and requiring that to be reproduced character for
+    character means the sensible-looking ``cohere-embed-v4`` silently prices
+    nothing, with no error to explain why.
+
+    The longest match wins, so a specific name beats a general one when both
+    would fit and ``gpt-4`` cannot quietly claim ``gpt-4o``'s calls.
+    """
+    exact = PRICES.get(model)
+    if exact:
+        return exact
+
+    if model == UNKNOWN_MODEL:
+        return None
+
+    target = _key(model)
+    candidates = [
+        name
+        for name in PRICES
+        if len(_key(name)) >= MIN_FUZZY_KEY and _key(name) in target
+    ]
+    if not candidates:
+        return None
+    return PRICES[max(candidates, key=lambda name: len(_key(name)))]
+
+
 def estimate_usd(
     model: str, input_tokens: int | None, output_tokens: int | None
 ) -> Decimal | None:
@@ -89,7 +147,7 @@ def estimate_usd(
     None rather than zero, always. The two are not the same claim and the UI
     renders them differently.
     """
-    rates = PRICES.get(model)
+    rates = rates_for(model)
     if not rates:
         return None
 

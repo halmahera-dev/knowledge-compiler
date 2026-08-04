@@ -17,22 +17,27 @@ from decimal import Decimal
 import pytest
 
 from app import pricing
+from app.config import get_settings
 
 
 @pytest.fixture
 def priced(monkeypatch):
     """Reloads the module with a known price list.
 
-    PRICES is read once at import, deliberately, so a rate cannot change midway
-    through a process. That means a test wanting different rates has to reload.
+    Two caches to defeat, both deliberate in production: PRICES is read once at
+    import so a rate cannot change midway through a process, and get_settings is
+    lru_cached so .env is parsed once. A test wanting different rates has to
+    clear the second and reload the first.
     """
 
     def _load(raw: str):
         monkeypatch.setenv("AI_PRICING", raw)
+        get_settings.cache_clear()
         return importlib.reload(pricing)
 
     yield _load
     monkeypatch.delenv("AI_PRICING", raising=False)
+    get_settings.cache_clear()
     importlib.reload(pricing)
 
 
@@ -68,11 +73,18 @@ class TestEstimateUsd:
 
 
 class TestPriceListParsing:
-    def test_no_configuration_prices_nothing(self, monkeypatch):
-        monkeypatch.delenv("AI_PRICING", raising=False)
-        module = importlib.reload(pricing)
+    def test_no_configuration_prices_nothing(self, priced):
+        module = priced("")
         assert module.PRICES == {}
         assert module.estimate_usd("anything", 10, 10) is None
+
+    def test_rates_are_read_from_env_not_the_process_environment(self, priced):
+        # The bug this pins: .env is parsed by pydantic-settings, which puts
+        # nothing into os.environ. Reading the rate with os.getenv found nothing
+        # for a value plainly present in .env, and the only symptom was cost
+        # staying unknown forever, with no error anywhere.
+        module = priced('{"m":{"input":1.0}}')
+        assert module.PRICES, "rates configured in settings must reach the price table"
 
     @pytest.mark.parametrize(
         "raw",
@@ -88,6 +100,37 @@ class TestPriceListParsing:
         module = priced('{"good":{"input":2.0},"bad":{"input":"free"}}')
         assert module.estimate_usd("good", 1_000_000, 0) == Decimal(2)
         assert module.estimate_usd("bad", 1_000_000, 0) is None
+
+
+class TestForgivingMatch:
+    """Nobody would think to write down the id these rows actually store."""
+
+    def test_matches_the_id_an_embedding_row_really_carries(self, priced):
+        # The row records prefix, inference profile and region; a person writes
+        # the model's name. Demanding they be identical priced nothing and said
+        # nothing about why.
+        module = priced('{"cohere-embed-v4":{"input":0.12}}')
+        stored = "bedrock:global.cohere.embed-v4:0@ap-southeast-3"
+        assert module.estimate_usd(stored, 1_000_000, None) == Decimal("0.12")
+
+    def test_punctuation_and_case_do_not_matter(self, priced):
+        module = priced('{"ZAI_GLM5":{"input":2.0}}')
+        assert module.estimate_usd("zai.glm-5", 1_000_000, 0) == Decimal(2)
+
+    def test_the_longest_match_wins(self, priced):
+        # Otherwise a general name quietly claims a specific model's calls.
+        module = priced('{"gpt-4":{"input":1.0},"gpt-4o-mini":{"input":9.0}}')
+        assert module.estimate_usd("gpt-4o-mini-2024", 1_000_000, 0) == Decimal(9)
+
+    def test_an_unrelated_model_is_still_unpriced(self, priced):
+        module = priced('{"cohere-embed-v4":{"input":0.12}}')
+        assert module.estimate_usd("zai.glm-5", 1_000_000, 0) is None
+
+    def test_backfilled_rows_stay_unknown(self, priced):
+        # `unknown` must never accidentally match a configured name — those rows
+        # predate the log and there is genuinely no rate for them.
+        module = priced('{"zai.glm-5":{"input":1.0},"n":{"input":1.0}}')
+        assert module.estimate_usd("unknown", 1_000_000, 0) is None
 
 
 class TestTokensFromText:

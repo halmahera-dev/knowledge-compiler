@@ -135,6 +135,11 @@ class Settings(BaseSettings):
     # merge too eagerly on one and never merge on another.
     match_threshold: float | None = None
     match_top_k: int = 5
+    # Model rates for the AI usage log, as JSON — see pricing.py. Declared here
+    # rather than read with os.getenv, because .env is loaded by pydantic-settings
+    # and that does not put anything into the process environment: a value set in
+    # .env was simply invisible to os.getenv, and cost silently stayed unknown.
+    ai_pricing: str = ""
     llm_max_retries: int = 2
     # Guard against a pathological paste blowing up an LLM call.
     max_content_chars: int = 200_000
