@@ -26,7 +26,9 @@
     "setup": "pnpm install && pnpm db:up && pnpm db:migrate && cd apps/api && uv sync --extra dev --extra local-embeddings",
     "dev:clean": "node scripts/dev-clean.mjs",
     "test:ts": "turbo run test",
-    "test": "pnpm test:ts && pnpm api:test"
+    "test:scripts": "node --test scripts/",
+    "test": "pnpm test:ts && pnpm test:scripts && pnpm api:test",
+    "ccloud": "node scripts/ccloud.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.4",
