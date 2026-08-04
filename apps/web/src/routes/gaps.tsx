@@ -47,9 +47,10 @@ function GapsPage() {
         <h1 className="mt-2 font-read text-h1 font-semibold tracking-[-0.02em]">
           Open questions
         </h1>
+        {/* The eyebrow above already says "what you haven't read yet"; the
+            second clause here only said it again in more words. */}
         <p className="mt-3 max-w-[62ch] text-small leading-relaxed text-ink-muted">
-          Prerequisites and follow-ups the agent noticed while compiling — topics your reading leans
-          on but never covers.
+          Prerequisites and follow-ups the agent noticed while compiling.
         </p>
       </header>
 

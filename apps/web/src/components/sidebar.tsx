@@ -119,14 +119,24 @@ export function Sidebar({
         } lg:flex`}
       >
         <div className="flex h-16 shrink-0 items-center gap-2 px-3">
+          {/* Two whole elements that swap, not one word cut in half. Splitting
+              the word put the flex gap between the initial and the rest, so it
+              read as "C ompiler".
+
+              Collapsed, the initial becomes a solid tile rather than a loose
+              letter — on a 68px rail a bare glyph reads as text that failed to
+              load, while a filled mark reads as a mark. */}
           <Link
             to="/capture"
             onClick={onCloseDrawer}
-            className="flex min-w-0 items-baseline gap-2.5 rounded-md px-2 py-1"
+            aria-label="Halmahera"
+            className="kc-sidebar-brand flex min-w-0 items-center rounded-md px-2 py-1"
           >
-            <span className="font-read text-[1.3rem] font-semibold tracking-tight">C</span>
+            <span className="kc-sidebar-mark size-9 shrink-0 place-items-center rounded-md bg-ink font-read text-[1.05rem] font-semibold text-paper">
+              H
+            </span>
             <span className="kc-sidebar-label truncate font-read text-[1.3rem] font-semibold tracking-tight">
-              ompiler
+              Halmahera
             </span>
           </Link>
 

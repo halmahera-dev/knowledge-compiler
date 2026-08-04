@@ -106,9 +106,9 @@ function AiLogsPage() {
       <header className="border-b border-rule pb-6">
         <p className="eyebrow">What the agent spent</p>
         <h1 className="mt-2 font-read text-h1 font-semibold tracking-[-0.02em]">AI Logs</h1>
+        {/* The clause after the dash listed the table's own column headings. */}
         <p className="mt-3 max-w-[62ch] text-small leading-relaxed text-ink-muted">
-          Every model call this workspace has made — which step ran it, how many
-          tokens it moved, and what that cost.
+          Every model call this workspace has made.
         </p>
       </header>
 

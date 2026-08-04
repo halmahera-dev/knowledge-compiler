@@ -185,8 +185,6 @@ function RootComponent() {
                     <MenuIcon />
                   </button>
 
-                  <span className="eyebrow hidden truncate sm:inline">knowledge base</span>
-
                   <div className="ml-auto flex shrink-0 items-center gap-0.5">
                     <VisualHelpButton onStart={() => setTourOpen(true)} />
                     <ThemeToggle />
@@ -196,15 +194,15 @@ function RootComponent() {
                 </div>
               </header>
 
+              {/* No footer. It carried one sentence — "Compiled by an agent.
+                  Every claim links back to the source it came from" — on every
+                  page of a signed-in app, where both halves are already evident
+                  from the compile feed and the citations themselves. A rule and
+                  40px of chrome to restate what the product is doing in front
+                  of you. */}
               <main className="flex-1">
                 <Outlet />
               </main>
-
-              <footer className="border-t border-rule py-6">
-                <p className="px-5 text-micro text-ink-faint">
-                  Compiled by an agent. Every claim links back to the source it came from.
-                </p>
-              </footer>
             </div>
           </div>
         )}

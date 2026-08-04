@@ -204,6 +204,13 @@
     width: 15rem;
   }
 
+  /* The single-letter mark, shown only on the collapsed rail. A separate element
+     from the wordmark rather than the same word cut short: rendering "H" and
+     "almahera" as two flex children put the gap inside the word. */
+  .kc-sidebar-mark {
+    display: none;
+  }
+
   @media (min-width: 1024px) {
     .kc-sidebar {
       transition: width var(--duration-normal) var(--ease-out-expo);
@@ -211,6 +218,18 @@
 
     html[data-sidebar="collapsed"] .kc-sidebar {
       width: 4.25rem;
+    }
+
+    /* grid, not block — the tile centres its letter with place-items. */
+    html[data-sidebar="collapsed"] .kc-sidebar-mark {
+      display: grid;
+    }
+
+    /* Centred on the rail, where there is no wordmark to align it against. */
+    html[data-sidebar="collapsed"] .kc-sidebar-brand {
+      justify-content: center;
+      width: 100%;
+      padding-inline: 0;
     }
 
     /* display:none rather than a visual hide, so a collapsed rail does not read

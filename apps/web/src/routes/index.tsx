@@ -234,8 +234,7 @@ function LandingPage() {
           </div>
           <p className="mt-4 text-small leading-relaxed text-ink-muted">
             Nothing crosses between them. A question asked in one is answered only from
-            what that one has read &mdash; which is what makes an answer attributable at
-            all.
+            what that one has read.
           </p>
         </div>
       </section>
@@ -275,11 +274,8 @@ function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-rule py-6">
-        <p className="mx-auto max-w-[76rem] px-5 text-micro text-ink-faint">
-          Compiled by an agent. Every claim links back to the source it came from.
-        </p>
-      </footer>
+      {/* The footer held one line restating the page above it. The call to
+          action is the last thing worth reading here. */}
     </div>
   );
 }

@@ -212,9 +212,11 @@ function GraphPage() {
           <h2 id="topics-heading" className="eyebrow">
             Every topic and what it connects to
           </h2>
+          {/* Was followed by two clauses justifying the list's own existence to
+              the reader. The app explaining why it made a choice is the app
+              talking about itself. */}
           <p className="mt-2 max-w-[60ch] text-small leading-relaxed text-ink-muted">
-            Heaviest first. Easier than hunting a name in the layout above, and the only
-            form that works without a mouse.
+            Heaviest first.
           </p>
 
           <ul className="mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-2">

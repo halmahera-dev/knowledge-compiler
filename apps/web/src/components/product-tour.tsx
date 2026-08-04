@@ -68,6 +68,11 @@ const STEPS: Step[] = [
     title: "What you haven't read",
     body: "Prerequisites your reading leans on but never covers, noticed while compiling.",
   },
+  {
+    target: "nav-ai-logs",
+    title: "What it cost",
+    body: "Every model call, the step that ran it, and the tokens it moved. Add your own rates and it prices them too.",
+  },
 ];
 
 interface Box {
