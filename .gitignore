@@ -37,3 +37,9 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# npm was used once at the start; this repo is pnpm (see packageManager in
+# package.json). A stray npm lockfile makes CI and hosting providers pick the
+# wrong package manager, and then resolve different versions than anyone tested.
+package-lock.json
+yarn.lock

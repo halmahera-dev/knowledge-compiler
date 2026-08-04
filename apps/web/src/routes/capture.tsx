@@ -54,11 +54,11 @@ const MODES = [
     placeholder: "https://…",
   },
   {
-    id: "clip" as const,
-    label: "Clip full text",
+    id: "extension" as const,
+    label: "Browser extension",
     Icon: PlusIcon,
-    hint: "Or use the browser extension.",
-    placeholder: "Paste the full article text…",
+    hint: "",
+    placeholder: "",
   },
   {
     id: "pdf" as const,
@@ -68,6 +68,15 @@ const MODES = [
     placeholder: "",
   },
 ];
+
+/**
+ * Which tab is showing.
+ *
+ * Wider than `CaptureType` on purpose: "extension" is a tab, not a way of
+ * capturing. Nothing is submitted from it, so it has no server-side counterpart
+ * — and typing it as a CaptureType would let it be posted as one.
+ */
+type Mode = (typeof MODES)[number]["id"];
 
 /**
  * Mirrors `max_pdf_bytes` in the API settings.
@@ -88,7 +97,7 @@ interface LiveRun {
 function CapturePage() {
   const { runs: initialRuns } = Route.useLoaderData();
 
-  const [mode, setMode] = useState<CaptureType>("paste");
+  const [mode, setMode] = useState<Mode>("paste");
   const [value, setValue] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -208,6 +217,8 @@ function CapturePage() {
   const submit = useCallback(async () => {
     const trimmed = value.trim();
     if (submitting) return;
+    // The extension tab has no form; saving happens in the page you are reading.
+    if (mode === "extension") return;
     if (mode === "pdf" ? !file : !trimmed) return;
 
     setSubmitting(true);
@@ -396,6 +407,8 @@ function CapturePage() {
               placeholder={activeMode.placeholder}
               className="mt-2 w-full rounded-md border border-rule bg-surface px-4 py-3.5 font-mono text-small text-ink transition-colors duration-fast placeholder:text-ink-faint hover:border-rule-strong focus:border-link"
             />
+          ) : mode === "extension" ? (
+            <ExtensionPanel />
           ) : (
             <textarea
               id="capture-input"
@@ -408,24 +421,28 @@ function CapturePage() {
               className="mt-2 w-full resize-y rounded-md border border-rule bg-surface px-4 py-3.5 font-read text-body leading-relaxed text-ink transition-colors duration-fast placeholder:text-ink-faint hover:border-rule-strong focus:border-link"
             />
           )}
-          <p className="mt-2 text-micro text-ink-faint">{activeMode.hint}</p>
+          {activeMode.hint && <p className="mt-2 text-micro text-ink-faint">{activeMode.hint}</p>}
         </div>
 
-        <div className="mt-4 flex items-center gap-4">
-          <button
-            type="button"
-            onClick={submit}
-            disabled={submitting || !canSubmit}
-            className="h-11 cursor-pointer rounded-md bg-ink px-6 text-small font-medium text-paper transition-all duration-fast hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {submitting ? (mode === "pdf" ? "Uploading…" : "Saving…") : "Save and compile"}
-          </button>
-          {mode !== "pdf" && (
-            <kbd className="hidden font-mono text-micro text-ink-faint sm:inline">
-              {mode === "link" ? "Enter" : "Ctrl/Cmd + Enter"}
-            </kbd>
-          )}
-        </div>
+        {/* Nothing to submit from the extension tab — the saving happens in the
+            page you are reading, not here. */}
+        {mode !== "extension" && (
+          <div className="mt-4 flex items-center gap-4">
+            <button
+              type="button"
+              onClick={submit}
+              disabled={submitting || !canSubmit}
+              className="h-11 cursor-pointer rounded-md bg-ink px-6 text-small font-medium text-paper transition-all duration-fast hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitting ? (mode === "pdf" ? "Uploading…" : "Saving…") : "Save and compile"}
+            </button>
+            {mode !== "pdf" && (
+              <kbd className="hidden font-mono text-micro text-ink-faint sm:inline">
+                {mode === "link" ? "Enter" : "Ctrl/Cmd + Enter"}
+              </kbd>
+            )}
+          </div>
+        )}
 
         {notice && (
           // Announced politely so a screen reader hears the result without
@@ -508,6 +525,80 @@ function CapturePage() {
             )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/** Where the packed extension lives. Empty until it is published. */
+const STORE_URL = "";
+
+/**
+ * The extension tab.
+ *
+ * This used to be a textarea for pasting a whole article, which asked you to do
+ * by hand exactly what the extension exists to do: select everything, copy,
+ * switch tabs, paste. The paste tab already covers pasting; this one now sends
+ * you to the tool instead.
+ *
+ * There is no install button when the extension is unpublished, and that is not
+ * an omission. Chrome removed inline installation in version 71 — a page cannot
+ * install an extension, and no amount of scripting brings it back. Pretending
+ * otherwise with a button that opens instructions would be a button that lies
+ * about what it does.
+ */
+function ExtensionPanel() {
+  return (
+    <div className="mt-2 rounded-md border border-rule bg-surface px-5 py-5">
+      <p className="font-read text-body leading-relaxed text-ink">
+        Save from the page you are reading — no copying, no switching tabs.
+      </p>
+      <ul className="mt-3 space-y-1.5 text-small leading-relaxed text-ink-muted">
+        <li>Click the toolbar icon to clip the readable article.</li>
+        <li>Or right-click a selection, the page, or a link.</li>
+        <li>It lands in whichever workspace is open here, under this account.</li>
+      </ul>
+
+      {STORE_URL ? (
+        <a
+          href={STORE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-5 inline-flex h-11 items-center rounded-md bg-ink px-5 text-small font-medium text-paper transition-opacity duration-fast hover:opacity-90"
+        >
+          Add to Chrome
+        </a>
+      ) : (
+        <div className="mt-5 border-t border-rule pt-4">
+          <p className="eyebrow">Not published yet — load it unpacked</p>
+          <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-small leading-relaxed text-ink-muted">
+            <li>
+              Open{" "}
+              <code className="rounded-sm bg-sunken px-1 font-mono text-micro">
+                chrome://extensions
+              </code>{" "}
+              and turn on Developer mode.
+            </li>
+            <li>
+              Choose <span className="text-ink">Load unpacked</span>, then the{" "}
+              <code className="rounded-sm bg-sunken px-1 font-mono text-micro">apps/extension</code>{" "}
+              folder.
+            </li>
+            <li>
+              Copy the extension id onto{" "}
+              <code className="rounded-sm bg-sunken px-1 font-mono text-micro">
+                BETTER_AUTH_TRUSTED_ORIGINS
+              </code>{" "}
+              and restart the app, or every save is refused.
+            </li>
+          </ol>
+          {/* chrome:// cannot be linked from a page either — Chrome blocks the
+              navigation — so the address is given as text to copy. */}
+          <p className="mt-3 text-micro leading-relaxed text-ink-faint">
+            Chrome does not allow a website to install an extension, or even to
+            open its own settings page. Both steps have to be yours.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
