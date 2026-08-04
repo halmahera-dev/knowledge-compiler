@@ -16,8 +16,10 @@ import {
   getRawItem,
   reportFailure,
   reportStep,
+  reportUsage,
   searchSimilarPages,
   type ExistingClaim,
+  type ModelUsage,
   type PageCandidate,
 } from "../api";
 import { config } from "../config";
@@ -84,7 +86,12 @@ const MAX_MODEL_CHARS = 24_000;
  * failed for a knowable reason is far more useful than one that failed silently.
  */
 async function generateStructured<T extends z.ZodType>(
-  agent: { generate: (input: string, options: unknown) => Promise<{ object?: unknown; text?: string }> },
+  agent: {
+    generate: (
+      input: string,
+      options: unknown,
+    ) => Promise<{ object?: unknown; text?: string; usage?: ModelUsage }>;
+  },
   prompt: string,
   schema: T,
   { runId, step }: { runId: string; step: string },
@@ -93,13 +100,31 @@ async function generateStructured<T extends z.ZodType>(
   let lastRaw = "";
 
   for (let attempt = 1; attempt <= config.maxRetries + 1; attempt += 1) {
-    let response: { object?: unknown; text?: string };
+    let response: { object?: unknown; text?: string; usage?: ModelUsage };
+    // Measured per attempt, not per step: a retry is a second call and a second
+    // bill, and folding them together hides how much retries actually cost.
+    const startedAt = Date.now();
     try {
       response = await agent.generate(prompt, { structuredOutput: { schema } });
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
+      await reportUsage({
+        operation: step,
+        latencyMs: Date.now() - startedAt,
+        status: "error",
+        error: lastError,
+        runId,
+      });
       continue;
     }
+
+    await reportUsage({
+      operation: step,
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+      latencyMs: Date.now() - startedAt,
+      runId,
+    });
 
     lastRaw = response.text ?? JSON.stringify(response.object ?? null);
     const parsed = schema.safeParse(response.object);

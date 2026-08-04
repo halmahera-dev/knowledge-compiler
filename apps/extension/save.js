@@ -23,6 +23,39 @@ export async function getBases() {
   };
 }
 
+/** `https://api.example.com/path` → `https://api.example.com/*`, the match form. */
+export function originPattern(url) {
+  try {
+    return `${new URL(url).origin}/*`;
+  } catch {
+    return null;
+  }
+}
+
+/** The two origins a save touches: the API it posts to, the app it borrows from. */
+export function originsFor(api, app) {
+  return [originPattern(api), originPattern(app)].filter(Boolean);
+}
+
+/**
+ * Whether Chrome will let us reach those origins at all.
+ *
+ * Only localhost ships as a required permission; anything else is optional and
+ * granted at runtime. Without the grant Chrome blocks the request before it is
+ * made, and — the part worth guarding — a `credentials: "include"` fetch quietly
+ * drops the app's session cookie, so the mint fails as though you were signed
+ * out. Checking first turns that into a sentence you can act on.
+ */
+export async function hasAccess(origins) {
+  if (!origins.length) return true;
+  try {
+    return await chrome.permissions.contains({ origins });
+  } catch {
+    // Older runtimes without the API: let the request proceed and fail honestly.
+    return true;
+  }
+}
+
 /** Tells "app is down" apart from "app does not trust this extension". */
 async function diagnose(appBase) {
   try {
@@ -82,6 +115,16 @@ export async function mintToken(appBase) {
  */
 export async function saveItem(payload) {
   const { api, app } = await getBases();
+
+  // Checked here rather than left to fail at the fetch, because the failure is
+  // indistinguishable from being signed out — and the remedy, granting access
+  // once from the popup, is not something you would guess from that.
+  if (!(await hasAccess(originsFor(api, app)))) {
+    throw new Error(
+      "This build has not been granted access to those URLs yet. Open the extension popup and press Save once to allow them.",
+    );
+  }
+
   const token = await mintToken(app);
 
   const response = await fetch(`${api}/api/v1/items`, {

@@ -6,7 +6,15 @@
  * `save.js` because the context menu needs exactly the same thing, and two
  * copies of an auth path is one too many.
  */
-import { DEFAULT_API, DEFAULT_APP, NOT_SIGNED_IN, getBases, saveItem } from "./save.js";
+import {
+  DEFAULT_API,
+  DEFAULT_APP,
+  NOT_SIGNED_IN,
+  getBases,
+  originsFor,
+  saveItem,
+} from "./save.js";
+import { finishProgress, startProgress } from "./progress.js";
 
 const titleEl = document.getElementById("title");
 const metaEl = document.getElementById("meta");
@@ -18,6 +26,8 @@ const appEl = document.getElementById("app");
 /** What the current tab yielded, filled in by `loadPage`. */
 let extracted = null;
 let metadata = null;
+/** Kept so the overlay can be drawn in the page the clip came from. */
+let tabId = null;
 
 function setStatus(message, kind = "") {
   statusEl.textContent = message;
@@ -34,6 +44,8 @@ async function loadPage() {
     metaEl.textContent = "Only http and https pages can be clipped.";
     return;
   }
+
+  tabId = tab.id;
 
   try {
     // Two injections rather than one file: readability and metadata answer
@@ -83,10 +95,17 @@ async function save() {
   saveEl.disabled = true;
   setStatus("Saving…");
 
+  const label = metadata?.title || extracted.title || "This page";
+
   await chrome.storage.sync.set({
     apiBase: (apiEl.value || DEFAULT_API).replace(/\/$/, ""),
     appBase: (appEl.value || DEFAULT_APP).replace(/\/$/, ""),
   });
+
+  // Drawn in the page rather than only here, because closing the popup is the
+  // natural thing to do while a save is in flight — and then the result had
+  // nowhere to land.
+  await startProgress(tabId, label, "Reading this page…");
 
   try {
     const result = await saveItem({
@@ -98,12 +117,14 @@ async function save() {
 
     if (result.duplicate) {
       const matched = result.duplicateOf?.title;
-      setStatus(
-        matched ? `Already saved as “${matched}”.` : "Already saved — nothing to recompile.",
-        "ok",
-      );
+      const detail = matched
+        ? `Already saved as “${matched}”.`
+        : "Already saved — nothing to recompile.";
+      setStatus(detail, "ok");
+      await finishProgress(tabId, "duplicate", label, detail);
     } else {
       setStatus("Saved. Compiling in the app…", "ok");
+      await finishProgress(tabId, "saved", label, "Compiling now — watch it land in the app.");
     }
   } catch (error) {
     const message = String(error?.message ?? error);
@@ -122,11 +143,38 @@ async function save() {
       });
       statusEl.append(link);
       saveEl.disabled = false;
+      await finishProgress(tabId, "error", "Sign in first", "Then save again.");
       return;
     }
 
     setStatus(message, "err");
     saveEl.disabled = false;
+    await finishProgress(tabId, "error", label, message.slice(0, 200));
+  }
+}
+
+/**
+ * Asks Chrome for the two origins this build is pointed at.
+ *
+ * Only localhost is a required permission; everything else is optional and
+ * granted here, which is what lets one unmodified build work against a deployed
+ * instance. Previously the API and App fields accepted any URL and then Chrome
+ * blocked the request before it was made — the fields promised something the
+ * manifest forbade.
+ *
+ * Called as the first thing in the click handler, before any `await`, because
+ * `permissions.request` needs the user gesture and an await spends it. When the
+ * origins are already granted it resolves immediately without a prompt, so this
+ * costs nothing on the common path.
+ */
+async function ensureAccess() {
+  const origins = originsFor(apiEl.value || DEFAULT_API, appEl.value || DEFAULT_APP);
+  if (!origins.length) return true;
+  try {
+    return await chrome.permissions.request({ origins });
+  } catch {
+    // Not fatal on its own: let the save try and report the real failure.
+    return true;
   }
 }
 
@@ -134,6 +182,14 @@ async function save() {
   const bases = await getBases();
   apiEl.value = bases.api;
   appEl.value = bases.app;
-  saveEl.addEventListener("click", save);
+
+  saveEl.addEventListener("click", async () => {
+    if (!(await ensureAccess())) {
+      setStatus("Access to those URLs was declined, so nothing can be saved to them.", "err");
+      return;
+    }
+    await save();
+  });
+
   await loadPage();
 })();

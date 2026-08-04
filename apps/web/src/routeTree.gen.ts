@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AiLogsRouteImport } from './routes/ai-logs'
 import { Route as AskRouteImport } from './routes/ask'
 import { Route as CaptureRouteImport } from './routes/capture'
 import { Route as GapsRouteImport } from './routes/gaps'
@@ -22,6 +23,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiLogsRoute = AiLogsRouteImport.update({
+  id: '/ai-logs',
+  path: '/ai-logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AskRoute = AskRouteImport.update({
@@ -67,6 +73,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai-logs': typeof AiLogsRoute
   '/ask': typeof AskRoute
   '/capture': typeof CaptureRoute
   '/gaps': typeof GapsRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-logs': typeof AiLogsRoute
   '/ask': typeof AskRoute
   '/capture': typeof CaptureRoute
   '/gaps': typeof GapsRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai-logs': typeof AiLogsRoute
   '/ask': typeof AskRoute
   '/capture': typeof CaptureRoute
   '/gaps': typeof GapsRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai-logs'
     | '/ask'
     | '/capture'
     | '/gaps'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai-logs'
     | '/ask'
     | '/capture'
     | '/gaps'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/ai-logs'
     | '/ask'
     | '/capture'
     | '/gaps'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiLogsRoute: typeof AiLogsRoute
   AskRoute: typeof AskRoute
   CaptureRoute: typeof CaptureRoute
   GapsRoute: typeof GapsRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-logs': {
+      id: '/ai-logs'
+      path: '/ai-logs'
+      fullPath: '/ai-logs'
+      preLoaderRoute: typeof AiLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ask': {
@@ -217,6 +237,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiLogsRoute: AiLogsRoute,
   AskRoute: AskRoute,
   CaptureRoute: CaptureRoute,
   GapsRoute: GapsRoute,

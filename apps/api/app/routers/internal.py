@@ -20,7 +20,7 @@ from sqlalchemy import select
 from .. import events
 from ..deps import DbDep, EmbedderDep, InternalAuth, scope_from_item, scope_from_run
 from ..embeddings import build_embedding_input
-from ..models import CompileRun, RawItem, WikiClaim, WikiPage, WikiPageRevision
+from ..models import ChatSession, CompileRun, RawItem, WikiClaim, WikiPage, WikiPageRevision
 from ..schemas import (
     ApplyCompileRequest,
     CompileDiff,
@@ -34,7 +34,9 @@ from ..schemas import (
     RunFailedRequest,
     RunStepRequest,
     SectionOut,
+    UsageRecordRequest,
 )
+from ..services import usage
 from ..services.compile import CompileError, apply_compile
 from ..services.matching import find_similar_pages, resolve_threshold
 
@@ -216,3 +218,55 @@ async def report_failure(payload: RunFailedRequest, db: DbDep) -> None:
     await events.publish(
         events.run_failed(str(payload.run_id), payload.error, run.workspace_id)
     )
+
+
+@router.post("/usage", status_code=status.HTTP_204_NO_CONTENT)
+async def record_usage(payload: UsageRecordRequest, db: DbDep) -> None:
+    """One model call the agent just made.
+
+    The workspace comes from the run or the session, never from the request. The
+    agent is trusted to say what it spent; it is not trusted to say whose budget
+    it came out of.
+
+    Reported after the call rather than streamed during it, so a failed call
+    still lands a row — a compile that burned tokens and then failed schema
+    validation is exactly the expensive case worth seeing.
+    """
+    workspace_id: str | None = None
+    raw_item_id: uuid.UUID | None = None
+
+    if payload.run_id is not None:
+        run = await db.get(CompileRun, payload.run_id)
+        if run is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="run not found")
+        workspace_id = run.workspace_id
+        raw_item_id = run.raw_item_id
+    elif payload.chat_session_id is not None:
+        session = await db.get(ChatSession, payload.chat_session_id)
+        if session is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")
+        workspace_id = session.workspace_id
+
+    if workspace_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="no workspace for this usage"
+        )
+
+    await usage.record(
+        db,
+        workspace_id=workspace_id,
+        service=payload.service,
+        operation=payload.operation,
+        provider=payload.provider,
+        model=payload.model,
+        input_tokens=payload.input_tokens,
+        output_tokens=payload.output_tokens,
+        tokens_estimated=payload.tokens_estimated,
+        latency_ms=payload.latency_ms,
+        status=payload.status,
+        error=payload.error,
+        compile_run_id=payload.run_id,
+        chat_session_id=payload.chat_session_id,
+        raw_item_id=raw_item_id,
+    )
+    await db.commit()

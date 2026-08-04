@@ -59,6 +59,13 @@ export const CompassIcon = (p: IconProps) => (
   </Icon>
 );
 
+/** Four bars of differing height — usage, distinct from the node-and-edge Graph mark. */
+export const MeterIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4.5 20v-6M9.5 20V5M14.5 20v-9M19.5 20v-4" />
+  </Icon>
+);
+
 export const PlusIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 5v14M5 12h14" />

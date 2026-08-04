@@ -436,3 +436,59 @@ enum ChatRole {
 
   @@map("chat_role")
 }
+
+// ─── AI usage ────────────────────────────────────────────────────────────────
+
+/// One model call, and what it cost.
+///
+/// Recorded for every call the product makes — reasoning steps in the compile
+/// pipeline, copilot answers, and embeddings — because "an agent works out where
+/// this belongs" is a sentence with a bill attached, and until it is written down
+/// nobody can say which part of the product is expensive.
+///
+/// Deliberately not related to `compile_runs`, `raw_items` or `chat_sessions` by
+/// foreign key, even though the ids are kept. A cost is a fact about money that
+/// already left, so deleting the capture it came from must not erase the record
+/// — a cascade here would quietly rewrite history every time someone tidied up.
+model AiUsageEvent {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id")
+
+  /// Which service made the call: `agent` or `api`.
+  service String
+  /// The action inside it: extract, match, compile, link, copilot, embedding.
+  /// A string rather than an enum, so adding a pipeline step is not a migration.
+  operation String
+
+  provider String
+  model    String
+
+  inputTokens  Int? @map("input_tokens")
+  outputTokens Int? @map("output_tokens")
+  totalTokens  Int? @map("total_tokens")
+
+  /// True when the counts were derived from text length rather than reported by
+  /// the provider. Everything backfilled from before this table existed is
+  /// estimated, and the UI has to be able to say so.
+  tokensEstimated Boolean @default(false) @map("tokens_estimated")
+
+  /// Null when the model has no configured rate — distinct from zero, which
+  /// would claim the call was free.
+  estimatedUsd Decimal? @map("estimated_usd") @db.Decimal(14, 10)
+
+  latencyMs Int?    @map("latency_ms")
+  status    String  @default("ok")
+  error     String?
+
+  /// What the call was for, when it maps to something openable. Ids only; see
+  /// the note above on why these are not foreign keys.
+  compileRunId  String? @map("compile_run_id") @db.Uuid
+  chatSessionId String? @map("chat_session_id") @db.Uuid
+  rawItemId     String? @map("raw_item_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, createdAt(sort: Desc)], map: "ai_usage_workspace_created_idx")
+  @@index([workspaceId, operation, createdAt(sort: Desc)], map: "ai_usage_workspace_op_idx")
+  @@map("ai_usage_events")
+}

@@ -97,7 +97,9 @@ function AskPage() {
         content: m.content,
       }));
 
-      const answer = await askCopilot(trimmed, history);
+      // The session exists by now — started above when there was no thread — so
+      // what this answer costs is attributable to the conversation it belongs to.
+      const answer = await askCopilot(trimmed, history, session.id);
       const updated = await api.appendTurn(session.id, { question: trimmed, ...answer });
 
       setThread(updated);

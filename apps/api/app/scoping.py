@@ -19,6 +19,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
+    AiUsageEvent,
     ChatMessage,
     ChatSession,
     ClaimSource,
@@ -46,6 +47,7 @@ WORKSPACE_OWNED = (
     KnowledgeGap,
     Wiki,
     ChatSession,
+    AiUsageEvent,
 )
 
 #: Models reachable only through a parent. Listing them explicitly means a new

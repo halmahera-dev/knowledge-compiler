@@ -437,3 +437,83 @@ class AppendTurnRequest(Wire):
     citations: list[CitationOut] = Field(default_factory=list)
     claims: list[RetrievedClaimOut] = Field(default_factory=list)
     refused: bool = False
+
+
+# ─── AI usage ────────────────────────────────────────────────────────────────
+
+
+class UsageRecordRequest(Wire):
+    """One model call, reported by the agent after it returns.
+
+    The workspace is deliberately absent. It is derived from ``run_id`` or
+    ``chat_session_id`` on the server, for the same reason every other internal
+    endpoint does it that way: a caller that can name its own workspace can bill
+    or read someone else's.
+    """
+
+    service: Literal["agent", "api"] = "agent"
+    operation: str
+    provider: str
+    model: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    tokens_estimated: bool = False
+    latency_ms: int | None = None
+    status: Literal["ok", "error"] = "ok"
+    error: str | None = None
+    run_id: uuid.UUID | None = None
+    chat_session_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _needs_an_owner(self) -> UsageRecordRequest:
+        if self.run_id is None and self.chat_session_id is None:
+            raise ValueError("run_id or chat_session_id is required to place the workspace")
+        return self
+
+
+class UsageEventOut(Wire):
+    id: uuid.UUID
+    service: str
+    operation: str
+    provider: str
+    model: str
+    input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
+    tokens_estimated: bool
+    #: Null when the model has no configured rate — not the same as zero.
+    estimated_usd: float | None
+    latency_ms: int | None
+    status: str
+    error: str | None
+    compile_run_id: uuid.UUID | None
+    chat_session_id: uuid.UUID | None
+    raw_item_id: uuid.UUID | None
+    created_at: dt.datetime
+
+
+class UsageByOperation(Wire):
+    operation: str
+    calls: int
+    total_tokens: int
+    estimated_usd: float | None
+
+
+class UsageSummary(Wire):
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    #: Sum over the rows that had a rate. See `unpriced_calls` for the rest.
+    estimated_usd: float | None
+    #: How many calls could not be priced, so the total is never read as complete.
+    unpriced_calls: int
+    #: How many rows carry derived rather than reported counts.
+    estimated_calls: int
+    by_operation: list[UsageByOperation]
+
+
+class UsageListOut(Wire):
+    events: list[UsageEventOut]
+    summary: UsageSummary
+    total: int

@@ -9,6 +9,7 @@ skipping the dedupe check or forgetting to stamp the workspace.
 
 from __future__ import annotations
 
+import time
 import uuid
 
 import structlog
@@ -18,8 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..embeddings import EmbeddingProvider, build_embedding_input
 from ..extraction import content_hash
 from ..models import CompileRun, RawItem
+from ..pricing import tokens_from_text
 from ..queue import enqueue_compile
 from ..scoping import Scope
+from . import usage
 from .wikis import resolve_wiki
 
 log = structlog.get_logger(__name__)
@@ -100,14 +103,39 @@ async def save_and_queue(
 
     # Embedded here rather than in the agent so the vector is written by the same
     # process that owns the database.
+    embed_input = build_embedding_input(title, content)
+    embed_started = time.perf_counter()
+    embed_error: str | None = None
     try:
-        vectors = await embedder.embed([build_embedding_input(title, content)])
+        vectors = await embedder.embed([embed_input])
         item.embedding = vectors[0]
         item.embedding_model = embedder.name
     except Exception as exc:
         # A missing embedding weakens topic matching for this item; it does not
         # justify discarding what the user saved.
-        log.warning("item_embedding_failed", item_id=str(item.id), error=str(exc))
+        embed_error = str(exc)
+        log.warning("item_embedding_failed", item_id=str(item.id), error=embed_error)
+
+    # Recorded whether it worked or not: a provider failing repeatedly is itself
+    # worth seeing in the log, and a failed call can still have been billed.
+    #
+    # Counts are estimated from the text, not reported. Bedrock's embedding
+    # responses carry no token count, so this is the honest best available — and
+    # the row says so, rather than presenting a guess as a measurement.
+    await usage.record(
+        db,
+        workspace_id=scope.workspace_id,
+        service=usage.API,
+        operation="embedding",
+        provider="bedrock-runtime",
+        model=embedder.name,
+        input_tokens=tokens_from_text(embed_input),
+        tokens_estimated=True,
+        latency_ms=int((time.perf_counter() - embed_started) * 1000),
+        status="error" if embed_error else "ok",
+        error=embed_error,
+        raw_item_id=item.id,
+    )
 
     run = CompileRun(
         workspace_id=scope.workspace_id,

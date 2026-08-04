@@ -10,6 +10,7 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
 
+import { reportUsage } from "../api";
 import { config } from "../config";
 import {
   buildCopilotPrompt,
@@ -54,6 +55,15 @@ const workflowInput = z.object({
    * this token, so the agent never names one and there is nothing to redirect.
    */
   token: z.string(),
+  /**
+   * The thread this question belongs to, for attributing what it cost.
+   *
+   * Optional, because a question can be asked before a session exists. When it
+   * is absent the call is simply not recorded — the API places usage by session
+   * or run and will not take a workspace on the agent's word, so there is
+   * nothing safe to attribute it to.
+   */
+  sessionId: z.string().nullable().default(null),
 });
 
 const afterRetrieve = workflowInput.extend({
@@ -132,7 +142,7 @@ const answer = createStep({
   inputSchema: afterRetrieve,
   outputSchema: workflowOutput,
   execute: async ({ inputData }) => {
-    const { question, claims, history, blocked } = inputData;
+    const { question, claims, history, blocked, sessionId } = inputData;
 
     // Short-circuit rather than asking the model to decline: it is cheaper, and
     // a hardcoded refusal cannot be argued out of by injected content.
@@ -147,8 +157,20 @@ const answer = createStep({
       };
     }
 
+    const startedAt = Date.now();
     const result = await copilotAgent.generate(buildCopilotPrompt(question, claims, history));
     const text = result.text ?? "";
+
+    // A refusal costs nothing because it short-circuits above, so everything
+    // reaching here is a real call worth recording.
+    await reportUsage({
+      operation: "copilot",
+      inputTokens: result.usage?.inputTokens,
+      outputTokens: result.usage?.outputTokens,
+      latencyMs: Date.now() - startedAt,
+      chatSessionId: sessionId ?? undefined,
+    });
+
     const citations = resolveCitations(text, claims);
 
     return {

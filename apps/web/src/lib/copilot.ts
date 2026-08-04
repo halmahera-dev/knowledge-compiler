@@ -58,6 +58,7 @@ export interface HistoryTurn {
 export async function askCopilot(
   question: string,
   history: HistoryTurn[] = [],
+  sessionId: string | null = null,
 ): Promise<CopilotAnswer> {
   const token = await getToken();
   if (!token) throw new Error("Sign in to ask.");
@@ -65,7 +66,9 @@ export async function askCopilot(
   const response = await fetch(`${MASTRA_URL}/api/workflows/copilot-ask/start-async`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ inputData: { question, history, token } }),
+    // sessionId only attributes what the answer cost; the workspace still comes
+    // from the token, so naming a session cannot reach another workspace.
+    body: JSON.stringify({ inputData: { question, history, token, sessionId } }),
   });
 
   if (!response.ok) {

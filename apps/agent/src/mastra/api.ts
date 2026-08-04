@@ -150,3 +150,47 @@ export async function reportFailure(
     // The worker also marks stuck runs as failed, so this is a best-effort path.
   }
 }
+
+/** Token usage as the AI SDK reports it. Every field is optional in practice. */
+export interface ModelUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+/**
+ * Record what one model call cost.
+ *
+ * Reported after the call rather than streamed during it, so a call that burned
+ * tokens and then failed schema validation still lands a row — that is exactly
+ * the expensive case worth seeing, and it is invisible if only successes count.
+ *
+ * Swallows its own errors, like `reportStep`: accounting must never be the
+ * reason a compiled page is lost.
+ */
+export async function reportUsage(payload: {
+  operation: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  latencyMs?: number;
+  status?: "ok" | "error";
+  error?: string;
+  runId?: string;
+  chatSessionId?: string;
+}): Promise<void> {
+  try {
+    await request<void>("/internal/usage", {
+      method: "POST",
+      body: JSON.stringify({
+        service: "agent",
+        // The workspace is not sent: the API derives it from runId or
+        // chatSessionId, so the agent cannot bill another workspace.
+        provider: "bedrock-mantle",
+        model: config.model.id.replace(/^custom\//, ""),
+        ...payload,
+      }),
+    });
+  } catch {
+    // See the note above.
+  }
+}

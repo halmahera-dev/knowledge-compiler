@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Knowledge Compiler",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Save what you are reading into your compiled knowledge base, from the toolbar or the right-click menu.",
   "permissions": ["activeTab", "scripting", "storage", "contextMenus", "notifications"],
   "host_permissions": [
     "http://localhost:8000/*",
     "http://localhost:3000/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js",

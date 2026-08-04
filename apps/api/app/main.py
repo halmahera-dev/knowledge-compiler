@@ -14,7 +14,7 @@ from .db import dispose_engine
 from .embeddings import EmbeddingError, resolve_provider
 from .events import close_redis
 from .queue import close_pool
-from .routers import chat, copilot, graph, internal, items, pages, runs
+from .routers import chat, copilot, graph, internal, items, pages, runs, usage
 
 log = structlog.get_logger(__name__)
 
@@ -109,6 +109,7 @@ app.include_router(pages.router)
 app.include_router(graph.router)
 app.include_router(runs.router)
 app.include_router(copilot.router)
+app.include_router(usage.router)
 app.include_router(internal.router)
 
 

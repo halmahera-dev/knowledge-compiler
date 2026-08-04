@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -24,6 +25,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     Text,
     UniqueConstraint,
     cast,
@@ -485,3 +487,55 @@ class ChatMessage(Base):
     created_at: Mapped[dt.datetime] = _now()
 
     session: Mapped[ChatSession] = relationship(back_populates="messages")
+
+
+class AiUsageEvent(Base):
+    """One model call, and what it cost.
+
+    Recorded for every call the product makes, because "an agent works out where
+    this belongs" is a sentence with a bill attached, and until it is written
+    down nobody can say which part of the product is expensive.
+
+    No foreign keys, deliberately — see the note in schema.prisma. A cost is a
+    fact about money that already left; deleting the capture it came from must
+    not erase the record.
+    """
+
+    __tablename__ = "ai_usage_events"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    workspace_id: Mapped[str] = mapped_column(Text, nullable=False)
+
+    #: `agent` or `api`.
+    service: Mapped[str] = mapped_column(Text, nullable=False)
+    #: extract | match | compile | link | copilot | embedding
+    operation: Mapped[str] = mapped_column(Text, nullable=False)
+
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    total_tokens: Mapped[int | None] = mapped_column(Integer)
+
+    #: True when counts were derived from text length rather than reported.
+    tokens_estimated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+
+    #: Null when the model has no configured rate — distinct from zero, which
+    #: would claim the call was free.
+    estimated_usd: Mapped[Decimal | None] = mapped_column(Numeric(14, 10))
+
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="ok")
+    error: Mapped[str | None] = mapped_column(Text)
+
+    compile_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    chat_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    raw_item_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+    created_at: Mapped[dt.datetime] = _now()
+
+    # No __table_args__: schema.prisma owns the indexes, as it does for every
+    # other model here, and Base.metadata.schema already puts this in `kc`.

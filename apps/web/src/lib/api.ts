@@ -152,6 +152,54 @@ export interface Gap {
   nodeSlug: string | null;
 }
 
+/** One model call, and what it cost. */
+export interface UsageEvent {
+  id: string;
+  service: string;
+  operation: string;
+  provider: string;
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  /** True when counts were derived from text length rather than reported. */
+  tokensEstimated: boolean;
+  /** Null when the model has no configured rate. Not the same as zero. */
+  estimatedUsd: number | null;
+  latencyMs: number | null;
+  status: string;
+  error: string | null;
+  compileRunId: string | null;
+  chatSessionId: string | null;
+  rawItemId: string | null;
+  createdAt: string;
+}
+
+export interface UsageByOperation {
+  operation: string;
+  calls: number;
+  totalTokens: number;
+  estimatedUsd: number | null;
+}
+
+export interface UsageSummary {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedUsd: number | null;
+  /** Calls with no configured rate, so the total is never read as complete. */
+  unpricedCalls: number;
+  estimatedCalls: number;
+  byOperation: UsageByOperation[];
+}
+
+export interface UsageList {
+  events: UsageEvent[];
+  summary: UsageSummary;
+  total: number;
+}
+
 export type CompileEvent =
   | { type: "run.started"; runId: string; rawItemId: string; title: string | null }
   | {
@@ -349,6 +397,14 @@ export const api = {
   retryRun: (runId: string) =>
     request<Run>(`/api/v1/runs/${runId}/retry`, { method: "POST" }),
   listGaps: () => request<Gap[]>("/api/v1/gaps"),
+  listUsage: (params: { days?: number; operation?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.days) query.set("days", String(params.days));
+    if (params.operation) query.set("operation", params.operation);
+    if (params.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString();
+    return request<UsageList>(`/api/v1/ai-usage${suffix ? `?${suffix}` : ""}`);
+  },
   dismissGap: (id: string) =>
     request<void>(`/api/v1/gaps/${id}/dismiss`, { method: "POST" }),
   health: () =>

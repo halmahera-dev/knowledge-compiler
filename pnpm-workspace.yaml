@@ -1,5 +1,8 @@
-# apps/extension is intentionally absent: it is plain files loaded unpacked by
-# the browser, with no dependencies and no build step.
+# apps/extension is intentionally absent from these globs: it is plain files
+# loaded unpacked by the browser, with no dependencies and no build step. It does
+# carry a package.json, but only to declare `"type": "module"` — Chrome reads the
+# manifest and ignores that file, while Node needs it to agree that these are ES
+# modules when running their tests.
 packages:
   - "apps/web"
   - "apps/agent"

@@ -12,6 +12,7 @@
  * repeat.
  */
 import { NOT_SIGNED_IN, getBases, saveItem, titleFromText } from "./save.js";
+import { finishProgress, startProgress } from "./progress.js";
 
 const MENU = {
   selection: "kc-save-selection",
@@ -47,32 +48,57 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   void handle(info, tab);
 });
 
+/** What the overlay says it is doing, before the payload exists to describe it. */
+function openingNote(info) {
+  if (info.menuItemId === MENU.link) return "Fetching the link…";
+  if (info.menuItemId === MENU.selection) return "Reading the selection…";
+  return "Reading this page…";
+}
+
 async function handle(info, tab) {
+  const tabId = tab?.id;
   await flash("…", "#8a8580");
+  // Started before the work, not after: the point of the overlay is the wait.
+  await startProgress(tabId, tab?.title ?? "This page", openingNote(info));
+
+  let label = tab?.title ?? "This page";
 
   try {
     const payload = await buildPayload(info, tab);
+    // Now the real title is known — the tab's own is only a stand-in for pages,
+    // and plain wrong for a selection or a link.
+    label = payload.title ?? payload.sourceUrl ?? label;
+
     const result = await saveItem(payload);
 
     if (result.duplicate) {
       const title = result.duplicateOf?.title;
-      await done("Already saved", title ? `Matched “${title}”.` : "Nothing to recompile.", "…");
+      const detail = title ? `Matched “${title}”.` : "Nothing to recompile.";
+      await done("Already saved", detail, "…");
+      await finishProgress(tabId, "duplicate", label, detail);
     } else if ((result.partsQueued ?? 1) > 1) {
-      await done("Saved", `Long enough to compile in ${result.partsQueued} parts.`, "✓");
+      const detail = `Long enough to compile in ${result.partsQueued} parts.`;
+      await done("Saved", detail, "✓");
+      await finishProgress(tabId, "saved", label, detail);
     } else {
-      await done("Saved", "Compiling now — watch it land in the app.", "✓");
+      const detail = "Compiling now — watch it land in the app.";
+      await done("Saved", detail, "✓");
+      await finishProgress(tabId, "saved", label, detail);
     }
   } catch (error) {
     const message = String(error?.message ?? error);
     if (message === NOT_SIGNED_IN) {
       const { app } = await getBases();
-      await done("Sign in first", "A clip goes to the workspace open in the app.", "!");
+      const detail = "A clip goes to the workspace open in the app.";
+      await done("Sign in first", detail, "!");
+      await finishProgress(tabId, "error", "Sign in first", detail);
       // Opening the tab is the whole remedy, and a notification they must read
       // and then act on is one step too many.
       await chrome.tabs.create({ url: `${app}/signin` });
       return;
     }
     await done("Could not save", message.slice(0, 160), "!");
+    await finishProgress(tabId, "error", label, message.slice(0, 200));
   }
 }
 

@@ -27,6 +27,7 @@ import {
   CompassIcon,
   GraphIcon,
   InboxIcon,
+  MeterIcon,
   MoonIcon,
   QuoteIcon,
   SunIcon,
@@ -96,6 +97,7 @@ const NAV = [
   { to: "/ask", label: "Ask", Icon: QuoteIcon },
   { to: "/graph", label: "Graph", Icon: GraphIcon },
   { to: "/gaps", label: "Gaps", Icon: CompassIcon },
+  { to: "/ai-logs", label: "AI Logs", Icon: MeterIcon },
 ] as const;
 
 function ThemeToggle() {
