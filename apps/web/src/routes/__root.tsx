@@ -1,7 +1,6 @@
 /// <reference types="vite/client" />
 import {
   HeadContent,
-  Link,
   Outlet,
   Scripts,
   createRootRoute,
@@ -22,17 +21,9 @@ import "@fontsource/source-serif-4/400-italic.css";
 import serifHeading from "@fontsource/source-serif-4/files/source-serif-4-latin-600-normal.woff2?url";
 import uiRegular from "@fontsource/inter/files/inter-latin-400-normal.woff2?url";
 
-import {
-  BookIcon,
-  CompassIcon,
-  GraphIcon,
-  InboxIcon,
-  MeterIcon,
-  MoonIcon,
-  QuoteIcon,
-  SunIcon,
-} from "~/components/icons";
+import { MenuIcon, MoonIcon, SunIcon } from "~/components/icons";
 import { ProductTour, VisualHelpButton } from "~/components/product-tour";
+import { SIDEBAR_INIT_SCRIPT, Sidebar } from "~/components/sidebar";
 import { WorkspaceMenu } from "~/components/workspace-menu";
 import styles from "~/styles.css?url";
 
@@ -91,14 +82,6 @@ export const Route = createRootRoute({
  */
 const BARE_ROUTES = new Set(["/", "/signin"]);
 
-const NAV = [
-  { to: "/capture", label: "Capture", Icon: InboxIcon },
-  { to: "/wiki", label: "Wiki", Icon: BookIcon },
-  { to: "/ask", label: "Ask", Icon: QuoteIcon },
-  { to: "/graph", label: "Graph", Icon: GraphIcon },
-  { to: "/gaps", label: "Gaps", Icon: CompassIcon },
-  { to: "/ai-logs", label: "AI Logs", Icon: MeterIcon },
-] as const;
 
 function ThemeToggle() {
   // `null` means "follow the OS", which is the initial state — an explicit
@@ -145,91 +128,88 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const bare = BARE_ROUTES.has(pathname);
   const [tourOpen, setTourOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // A drawer left open over the page you just navigated to is a dead end on a
+  // phone — the link worked, but the destination is behind the thing you tapped
+  // it in. Closing on every path change also covers back and forward.
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
         <script
-          // Applies the stored theme before first paint. Without this the page
-          // renders light then flips, which is worse than no toggle at all.
+          // Applies the stored theme and sidebar width before first paint.
+          // Without this the page renders light then flips, and a collapsed
+          // sidebar springs open on every load — both worse than no memory at all.
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('kc-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('kc-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}${SIDEBAR_INIT_SCRIPT}`,
           }}
         />
       </head>
       <body className="bg-paper text-ink">
-        <div className="flex min-h-dvh flex-col">
-          {!bare && (
-          <header className="sticky top-0 z-40 border-b border-rule bg-paper/85 backdrop-blur-md">
-            <div className="mx-auto flex h-16 max-w-[76rem] items-center gap-3 px-5 sm:gap-6">
-              <Link to="/capture" className="group flex shrink-0 items-baseline gap-2.5">
-                <span className="font-read text-[1.3rem] font-semibold tracking-tight">
-                  Compiler
-                </span>
-                <span className="eyebrow hidden sm:inline">knowledge base</span>
-              </Link>
+        {bare ? (
+          <div className="flex min-h-dvh flex-col">
+            <main className="flex-1">
+              <Outlet />
+            </main>
+          </div>
+        ) : (
+          // The nav is a column and everything else is the rest of the row, so
+          // the content stretches into whatever the sidebar is not using —
+          // collapsing the rail genuinely gives the page the width back.
+          <div className="flex min-h-dvh">
+            <Sidebar
+              pathname={pathname}
+              drawerOpen={drawerOpen}
+              onCloseDrawer={() => setDrawerOpen(false)}
+            />
 
-              {/* Scrolls within itself rather than widening the page. At 375px the
-                  five links, the theme toggle and the workspace switcher come to
-                  451px, which was forcing a horizontal scrollbar on the whole
-                  document — on every route. The switcher and toggle stay pinned
-                  outside this box, since scrolling away the way out of a
-                  workspace is not an acceptable trade. */}
-              <nav
-                aria-label="Main"
-                className="scrollbar-none ml-auto flex min-w-0 items-center gap-0.5 overflow-x-auto"
-              >
-                {NAV.map(({ to, label, Icon }) => {
-                  const active = pathname === to || pathname.startsWith(`${to}/`);
-                  return (
-                    <Link
-                      key={to}
-                      to={to}
-                      // Current location is marked by weight and a rule, not by
-                      // colour alone.
-                      data-tour={`nav-${label.toLowerCase()}`}
-                      aria-current={active ? "page" : undefined}
-                      className={`relative flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-small transition-colors duration-fast sm:px-3 ${
-                        active
-                          ? "font-medium text-ink"
-                          : "text-ink-muted hover:bg-sunken hover:text-ink"
-                      }`}
-                    >
-                      <Icon />
-                      <span className="hidden sm:inline">{label}</span>
-                      {active && (
-                        <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink sm:inset-x-3" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </nav>
+            {/* min-w-0 is what stops a wide table or a long unbroken URL inside
+                a page from pushing this column past the viewport: a flex item's
+                default min-width is its content, not zero. */}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <header className="sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
+                <div className="flex h-16 items-center gap-2 px-4 sm:px-5">
+                  <button
+                    type="button"
+                    onClick={() => setDrawerOpen(true)}
+                    aria-label="Open navigation"
+                    aria-controls="main-nav"
+                    aria-expanded={drawerOpen}
+                    className="flex size-9 cursor-pointer items-center justify-center rounded-md text-ink-muted transition-colors duration-fast hover:bg-sunken hover:text-ink lg:hidden"
+                  >
+                    <MenuIcon />
+                  </button>
 
-              <div className="flex shrink-0 items-center gap-0.5">
-                <VisualHelpButton onStart={() => setTourOpen(true)} />
-                <ThemeToggle />
-                <span aria-hidden="true" className="mx-1 hidden h-6 w-px bg-rule sm:block" />
-                <WorkspaceMenu />
-              </div>
+                  <span className="eyebrow hidden truncate sm:inline">knowledge base</span>
+
+                  <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                    <VisualHelpButton onStart={() => setTourOpen(true)} />
+                    <ThemeToggle />
+                    <span aria-hidden="true" className="mx-1 hidden h-6 w-px bg-rule sm:block" />
+                    <WorkspaceMenu />
+                  </div>
+                </div>
+              </header>
+
+              <main className="flex-1">
+                <Outlet />
+              </main>
+
+              <footer className="border-t border-rule py-6">
+                <p className="px-5 text-micro text-ink-faint">
+                  Compiled by an agent. Every claim links back to the source it came from.
+                </p>
+              </footer>
             </div>
-          </header>
-          )}
+          </div>
+        )}
 
-          <main className="flex-1">
-            <Outlet />
-          </main>
-
-          {tourOpen && <ProductTour onClose={() => setTourOpen(false)} />}
-
-          {!bare && (
-          <footer className="border-t border-rule py-6">
-            <p className="mx-auto max-w-[76rem] px-5 text-micro text-ink-faint">
-              Compiled by an agent. Every claim links back to the source it came from.
-            </p>
-          </footer>
-          )}
-        </div>
+        {tourOpen && <ProductTour onClose={() => setTourOpen(false)} />}
         <Scripts />
       </body>
     </html>

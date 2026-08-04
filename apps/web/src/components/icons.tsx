@@ -121,6 +121,26 @@ export const QuoteIcon = (p: IconProps) => (
   </Icon>
 );
 
+/** A panel with its left column ruled off — the sidebar itself, as its own control. */
+export const PanelIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9.5 4v16" />
+  </Icon>
+);
+
+export const MenuIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </Icon>
+);
+
+export const CloseIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </Icon>
+);
+
 export const SunIcon = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="4" />

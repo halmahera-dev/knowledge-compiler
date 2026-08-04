@@ -185,6 +185,42 @@
     color: var(--color-ink-faint);
   }
 
+  /* ── Sidebar ──────────────────────────────────────────────────────────────
+     Width is owned by CSS, not by React, and keyed off an attribute the inline
+     script in <head> sets before first paint — the same trick the theme uses.
+
+     Doing it in React instead would mean the server renders one width and the
+     client corrects it after hydration, so a collapsed sidebar would flash open
+     on every page load. Keeping it here also means no hydration mismatch: the
+     component never claims to know the width.
+
+     Width is a layout property, and the house rule is to animate transform and
+     opacity instead. The exception is deliberate: a sidebar collapse IS a
+     layout change — the content beside it has to take up the space — and there
+     is no transform that reflows a sibling. It is one discrete, user-initiated
+     transition on one element, not scroll-linked, and the reduced-motion block
+     below already reduces it to nothing. */
+  .kc-sidebar {
+    width: 15rem;
+  }
+
+  @media (min-width: 1024px) {
+    .kc-sidebar {
+      transition: width var(--duration-normal) var(--ease-out-expo);
+    }
+
+    html[data-sidebar="collapsed"] .kc-sidebar {
+      width: 4.25rem;
+    }
+
+    /* display:none rather than a visual hide, so a collapsed rail does not read
+       out every label to a screen reader. The links carry aria-label, so the
+       accessible name survives the text going away. */
+    html[data-sidebar="collapsed"] .kc-sidebar-label {
+      display: none;
+    }
+  }
+
   /* Wiki prose. Measure is capped near 68 characters — past that the eye loses
      the line start on return. */
   .prose-read {
