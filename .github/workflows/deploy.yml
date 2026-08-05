@@ -4,13 +4,33 @@ on:
   push:
     branches: [ "main" ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-push:
-    name: Build & Push Docker Images
+    name: Build & Push Docker Images (${{ matrix.service }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: web
+            file: ./apps/web/Dockerfile
+            image: kc-web
+          - service: api
+            file: ./apps/api/Dockerfile
+            image: kc-api
+          - service: agent
+            file: ./apps/agent/Dockerfile
+            image: kc-agent
+          - service: migrate
+            file: ./Dockerfile.migrate
+            image: kc-migrate
 
     steps:
       - name: Checkout Code
@@ -29,45 +49,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and Push Web Image
-      - name: Build & Push Web Image
+      - name: Build & Push Image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./apps/web/Dockerfile
+          file: ${{ matrix.file }}
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/kc-web:latest
-
-      # Build and Push API Image
-      - name: Build & Push API Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/api/Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/kc-api:latest
-
-      # Build and Push Agent Image
-      - name: Build & Push Agent Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./apps/agent/Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/kc-agent:latest
-
-      # Build and Push Migrate Image
-      - name: Build & Push Migrate Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.migrate
-          platforms: linux/arm64
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/kc-migrate:latest
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   deploy-to-ec2:
     name: Deploy to AWS EC2 (t4g.small)
