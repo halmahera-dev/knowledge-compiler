@@ -25,3 +25,8 @@ services:
     command: uv run arq app.worker.WorkerSettings
     restart: always
     env_file: .env
+
+  migrate:
+    image: ghcr.io/${GH_OWNER}/kc-migrate:latest
+    env_file: .env
+
