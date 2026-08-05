@@ -56,11 +56,29 @@ export async function hasAccess(origins) {
   }
 }
 
+/** Whether a base is one of the development defaults nobody deliberately chose. */
+function isLocalhost(base) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(base);
+}
+
 /** Tells "app is down" apart from "app does not trust this extension". */
 async function diagnose(appBase) {
   try {
     await fetch(`${appBase}/api/auth/token`, { mode: "no-cors", credentials: "include" });
   } catch {
+    // "Is it running?" is the right question for a developer whose stack is
+    // down, and the wrong one for someone using a deployed instance — there the
+    // answer is that the extension was never pointed at it. The extension has no
+    // build step, so it ships with the development defaults and keeps them until
+    // somebody changes them, which is easy to miss when everything else moved to
+    // a server.
+    if (isLocalhost(appBase)) {
+      return [
+        `Nothing is running at ${appBase}, which is where this extension still points.`,
+        "If your app is deployed, put its URL in the App and API fields below and press Save —",
+        "the extension will ask permission for that address the first time.",
+      ].join(" ");
+    }
     return `Could not reach the app at ${appBase}. Is it running?`;
   }
 
