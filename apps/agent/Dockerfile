@@ -11,6 +11,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @kc/agent build
 
 FROM node:20-slim AS runner
+RUN corepack enable && corepack prepare pnpm@10.8.1 --activate
 WORKDIR /app
 COPY --from=builder /app ./
 
