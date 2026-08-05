@@ -17,6 +17,32 @@ import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/600.css";
 import "@fontsource/source-serif-4/400-italic.css";
 
+/**
+ * The stylesheet, imported for its side effect rather than for its URL.
+ *
+ * It was `import styles from "~/styles.css?url"` with a hand-written
+ * `<link rel="stylesheet">` in `links` below, and that shipped a stylesheet
+ * that 404'd in production — every refresh painted the whole app unstyled until
+ * the client JS loaded a couple of seconds later and fetched the right one.
+ *
+ * `?url` gives each build pass its own hash of what that pass sees. The client
+ * pass runs the CSS through Tailwind and emits 33KB under one hash; the server
+ * pass never processes or emits it at all, and hashes the source file. So the
+ * server-rendered href named a file no build ever wrote. A 404 stylesheet stops
+ * blocking the paint, which is precisely why the unstyled page appeared instead
+ * of a blank one.
+ *
+ * A plain import puts it through the normal pipeline, where the framework links
+ * whatever was actually emitted. The font CSS below was always imported this
+ * way and always resolved — same file, two mechanisms, and only one of them
+ * survived the round trip.
+ *
+ * The woff2 imports keep `?url`, and that is not an inconsistency: binary
+ * assets are copied byte for byte, so both passes hash identical content and
+ * agree. Verified against the deployed server — the fonts return 200.
+ */
+import "~/styles.css";
+
 // Imported for their hashed build URLs, so they can be preloaded by href.
 import serifHeading from "@fontsource/source-serif-4/files/source-serif-4-latin-600-normal.woff2?url";
 import uiRegular from "@fontsource/inter/files/inter-latin-400-normal.woff2?url";
@@ -25,7 +51,6 @@ import { MenuIcon, MoonIcon, SunIcon } from "~/components/icons";
 import { ProductTour, VisualHelpButton } from "~/components/product-tour";
 import { SIDEBAR_INIT_SCRIPT, Sidebar } from "~/components/sidebar";
 import { WorkspaceMenu } from "~/components/workspace-menu";
-import styles from "~/styles.css?url";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -39,7 +64,6 @@ export const Route = createRootRoute({
       },
     ],
     links: [
-      { rel: "stylesheet", href: styles },
       /*
        * Two fonts, preloaded; the other six are left to discovery.
        *

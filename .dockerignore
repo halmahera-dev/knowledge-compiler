@@ -1,0 +1,64 @@
+# What must never travel from a developer's machine into an image.
+#
+# Without this file, `COPY apps/web ./apps/web` brought the host's own `dist/`
+# and `node_modules/` along, and the build then ran on top of them. The result
+# was an image whose server bundle and client assets came from different builds:
+# the server-rendered HTML asked for /assets/styles-DLWCcDOO.css, that file was
+# not there, and the 404 stopped the stylesheet blocking the paint — so every
+# refresh showed the page with no CSS at all until the client JS loaded and
+# fetched the right one about two seconds later.
+#
+# A stale asset is worse than a missing one. The build looked like it succeeded.
+
+# Dependencies. Also built for the developer's OS — copying Windows or macOS
+# binaries into a linux image is its own class of failure.
+node_modules/
+**/node_modules/
+.pnpm-store/
+
+# Build output. Regenerated inside the image; carrying a copy in is what caused
+# the mismatch above.
+dist/
+**/dist/
+build/
+**/build/
+.output/
+.turbo/
+**/.turbo/
+.mastra/
+**/.mastra/
+**/.vinxi/
+**/.nitro/
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+**/.model-cache/
+
+# Secrets. None of the Dockerfiles copy a path that would reach the root .env
+# today, but that is a property of the current COPY lines rather than a rule —
+# one added line would change it, and an image layer keeps what it was given.
+.env
+.env.*
+!.env.example
+
+# Version control and local tooling
+.git/
+.gitignore
+.claude/
+.vscode/
+.idea/
+
+# Not needed to build or run
+*.md
+!README.md
+coverage/
+**/coverage/
+*.log
