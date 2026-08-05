@@ -13,7 +13,8 @@ RUN pnpm --filter @kc/web build
 FROM node:20-slim AS runner
 WORKDIR /app
 COPY --from=builder /app ./
+WORKDIR /app/apps/web
 
 EXPOSE 3000
 
-CMD ["node", "apps/web/.output/server/index.mjs"]
+CMD ["node", ".output/server/index.mjs"]
