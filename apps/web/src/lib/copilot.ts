@@ -10,12 +10,10 @@
  * from it, so the workspace is never a parameter anyone — including the model —
  * could tamper with.
  */
+import { serviceUrl } from "./service-url";
 import { getToken } from "./token";
 
-const MASTRA_URL = (import.meta.env.VITE_MASTRA_URL ?? "http://localhost:4111").replace(
-  /\/$/,
-  "",
-);
+const MASTRA_URL = serviceUrl(import.meta.env.VITE_MASTRA_URL, "http://localhost:4111");
 
 export interface CopilotClaim {
   claimId: string;

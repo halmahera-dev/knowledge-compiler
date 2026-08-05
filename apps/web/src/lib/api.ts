@@ -6,6 +6,7 @@
  */
 
 import { getApiToken } from "./auth-server";
+import { serviceUrl } from "./service-url";
 import { getToken } from "./token";
 
 /**
@@ -22,7 +23,7 @@ async function getSsrToken(): Promise<string | null> {
   }
 }
 
-const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const BASE = serviceUrl(import.meta.env.VITE_API_URL, "http://localhost:8000");
 
 /**
  * How an item entered the knowledge base.

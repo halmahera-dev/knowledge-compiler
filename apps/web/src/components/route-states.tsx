@@ -111,3 +111,25 @@ export function ErrorState({ error, reset }: { error: unknown; reset?: () => voi
     </Shell>
   );
 }
+
+/**
+ * Shown while a route's loader is still fetching.
+ *
+ * Without one, the router simply waits: the click registers, nothing moves, and
+ * the previous page stays on screen for as long as the request takes. On a
+ * server a couple of hundred milliseconds away that reads as a broken link
+ * rather than as loading, and the natural response is to click again.
+ *
+ * Deliberately almost nothing — a line of text that fades in. It costs no
+ * request and no layout work, and the application shell around it never
+ * unmounts, so the sidebar and header stay put and only the content area
+ * changes. A skeleton imitating each page's structure would be more to look at
+ * and more to maintain, and would still be wrong the moment a page changed.
+ */
+export function PendingState() {
+  return (
+    <div className="mx-auto max-w-[76rem] px-5 py-10">
+      <p className="eyebrow rise-in">Loading…</p>
+    </div>
+  );
+}
