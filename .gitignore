@@ -43,3 +43,5 @@ Thumbs.db
 # wrong package manager, and then resolve different versions than anyone tested.
 package-lock.json
 yarn.lock
+
+*.pem
