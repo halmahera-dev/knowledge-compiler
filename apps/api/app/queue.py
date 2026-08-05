@@ -37,6 +37,7 @@ def redis_settings() -> RedisSettings:
         port=parsed.port or 6379,
         password=parsed.password,
         database=database,
+        ssl=parsed.scheme == "rediss",
     )
 
 
