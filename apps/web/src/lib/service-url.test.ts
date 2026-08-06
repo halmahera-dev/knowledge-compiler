@@ -43,9 +43,21 @@ describe("serviceUrl", () => {
   });
 
   describe("in production", () => {
-    it("refuses to ship a build with no URL rather than guessing localhost", () => {
+    it("does not throw, because module load must not take the site down", () => {
+      // An earlier version threw here. It ran at module load, so one missing
+      // build argument returned an opaque 500 for every page including the
+      // landing page and sign-in — neither of which needs the API at all.
       asProduction(true);
-      expect(() => serviceUrl(undefined, FALLBACK)).toThrow(/VITE_API_URL/);
+      expect(() => serviceUrl(undefined, FALLBACK)).not.toThrow();
+    });
+
+    it("says loudly what is wrong, since it can no longer stop the build", () => {
+      asProduction(true);
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      serviceUrl(undefined, FALLBACK);
+      expect(spy).toHaveBeenCalledOnce();
+      expect(spy.mock.calls[0]![0]).toMatch(/VITE_API_URL/);
+      spy.mockRestore();
     });
 
     it("treats an empty string as unset", () => {
@@ -54,22 +66,26 @@ describe("serviceUrl", () => {
       // turn every call into a same-origin path that 404s against the web
       // server — quieter than the bug it replaces.
       asProduction(true);
-      expect(() => serviceUrl("", FALLBACK)).toThrow();
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(serviceUrl("", FALLBACK)).toBe(FALLBACK);
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
     });
 
     it("treats whitespace as unset too", () => {
       asProduction(true);
-      expect(() => serviceUrl("   ", FALLBACK)).toThrow();
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(serviceUrl("   ", FALLBACK)).toBe(FALLBACK);
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
     });
 
-    it("names the variable to set, so the message is actionable", () => {
+    it("stays quiet when a real URL is configured", () => {
       asProduction(true);
-      expect(() => serviceUrl(undefined, FALLBACK)).toThrow(/VITE_MASTRA_URL/);
-    });
-
-    it("accepts a real URL without complaint", () => {
-      asProduction(true);
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
       expect(serviceUrl("https://api.example.com", FALLBACK)).toBe("https://api.example.com");
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
     });
   });
 });

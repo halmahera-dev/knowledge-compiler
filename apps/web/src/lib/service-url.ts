@@ -30,12 +30,22 @@ export function serviceUrl(configured: string | undefined, devFallback: string):
   if (trimmed) return trimmed.replace(/\/$/, "");
 
   if (import.meta.env.PROD) {
-    // Loud on purpose. A production bundle pointed at localhost looks like a
-    // working app with an empty database, which costs far more to diagnose than
-    // a message naming the variable.
-    throw new Error(
-      "This build has no service URL configured, so it would ask the visitor's own machine for data. " +
-        "Set VITE_API_URL and VITE_MASTRA_URL when building — see apps/web/Dockerfile.",
+    // Complains, but does not throw.
+    //
+    // Throwing here is what an earlier version did, and it was the wrong call:
+    // this runs at module load, so a missing build argument took the whole site
+    // down — landing page, sign-in and all — with an opaque 500, for a mistake
+    // that had nothing to do with the request being served. The build now
+    // refuses to produce such a bundle in the first place (see vite.config.ts),
+    // which is where that failure belongs.
+    //
+    // So this is the last line of defence rather than the first, and its job is
+    // to be visible, not fatal. Data-loading fails and says why; everything that
+    // does not need the API still works.
+    console.error(
+      "[knowledge-compiler] No service URL was compiled into this build, so requests " +
+        "would go to the visitor's own machine. Rebuild with VITE_API_URL and " +
+        "VITE_MASTRA_URL set — see apps/web/Dockerfile.",
     );
   }
 

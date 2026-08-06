@@ -32,6 +32,10 @@ ARG VITE_MASTRA_URL
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_MASTRA_URL=$VITE_MASTRA_URL
 
+# Turns a missing URL into a failed build rather than a broken image. Only set
+# here, so `pnpm build` on a laptop still works and merely warns.
+ENV KC_REQUIRE_SERVICE_URLS=1
+
 RUN pnpm --filter @kc/web build
 
 FROM node:20-slim AS runner
