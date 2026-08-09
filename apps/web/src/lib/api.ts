@@ -136,11 +136,28 @@ export interface GraphNode {
   kind: "topic" | "entity";
   weight: number;
   slug: string | null;
+  /** Which cluster Louvain put it in. Null before the first detection run. */
+  community: number | null;
+}
+
+/**
+ * An edge computed from where nodes were seen, not asserted by the agent.
+ *
+ * Kept apart from `edges` all the way to the screen. A typed relation is a claim
+ * that can be wrong — which is why a compile can be reverted. Co-occurrence is a
+ * statistic that cannot be wrong, only uninteresting.
+ */
+export interface DerivedEdge {
+  source: string;
+  target: string;
+  kind: "mentions" | "co_occurs";
+  sharedSources: number;
 }
 
 export interface GraphData {
   nodes: GraphNode[];
   edges: { id: string; source: string; target: string; relation: EdgeRelation; weight: number }[];
+  derivedEdges: DerivedEdge[];
 }
 
 export interface Gap {

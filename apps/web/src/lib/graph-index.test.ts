@@ -11,12 +11,18 @@ import { describe, expect, it } from "vitest";
 import type { GraphData } from "./api";
 import { buildIndex } from "./graph-index";
 
-const A = { id: "a", label: "Quantisation", kind: "topic" as const, weight: 5, slug: "quantisation" };
-const B = { id: "b", label: "Outlier channels", kind: "topic" as const, weight: 3, slug: "outliers" };
-const C = { id: "c", label: "Entity", kind: "entity" as const, weight: 1, slug: null };
+const A = { id: "a", label: "Quantisation", kind: "topic" as const, weight: 5, slug: "quantisation", community: null };
+const B = { id: "b", label: "Outlier channels", kind: "topic" as const, weight: 3, slug: "outliers", community: null };
+const C = { id: "c", label: "Entity", kind: "entity" as const, weight: 1, slug: null, community: null };
 
 function graph(over: Partial<GraphData> = {}): GraphData {
-  return { nodes: [A, B, C], edges: [], ...over };
+  // Built field by field rather than spread over a Partial: spreading makes
+  // every property optional, so the helper's return type stops matching GraphData.
+  return {
+    nodes: over.nodes ?? [A, B, C],
+    edges: over.edges ?? [],
+    derivedEdges: over.derivedEdges ?? [],
+  };
 }
 
 const find = (index: ReturnType<typeof buildIndex>, id: string) =>
@@ -112,6 +118,6 @@ describe("buildIndex", () => {
   });
 
   it("returns an empty index for an empty graph", () => {
-    expect(buildIndex({ nodes: [], edges: [] })).toEqual([]);
+    expect(buildIndex({ nodes: [], edges: [], derivedEdges: [] })).toEqual([]);
   });
 });

@@ -7,7 +7,8 @@ from sqlalchemy import select
 
 from ..deps import DbDep, ScopeDep
 from ..models import GraphEdge, GraphNode, WikiPage
-from ..schemas import GraphEdgeOut, GraphNodeOut, GraphOut
+from ..schemas import DerivedEdgeOut, GraphEdgeOut, GraphNodeOut, GraphOut
+from ..services.clustering import derived_edges
 
 router = APIRouter(prefix="/api/v1/graph", tags=["graph"])
 
@@ -33,7 +34,14 @@ async def get_graph(
     ).all()
 
     nodes = [
-        GraphNodeOut(id=node.id, label=node.label, kind=node.kind, weight=node.weight, slug=slug)
+        GraphNodeOut(
+            id=node.id,
+            label=node.label,
+            kind=node.kind,
+            weight=node.weight,
+            slug=slug,
+            community=node.community,
+        )
         for node, slug in rows
     ]
     node_ids = {n.id for n in nodes}
@@ -62,5 +70,19 @@ async def get_graph(
             # Dropping edges whose endpoints were filtered out keeps the payload
             # renderable; a dangling edge id would break the layout.
             if edge.source_node_id in node_ids and edge.target_node_id in node_ids
+        ],
+        # Computed from provenance on every request rather than stored. At this
+        # scale the work is negligible, and a second edge table would have to be
+        # kept in step with the first — a synchronisation problem bought before
+        # there is evidence it is needed.
+        derived_edges=[
+            DerivedEdgeOut(
+                source=edge.source_id,
+                target=edge.target_id,
+                kind=edge.kind,
+                shared_sources=edge.shared_sources,
+            )
+            for edge in await derived_edges(db, scope)
+            if edge.source_id in node_ids and edge.target_id in node_ids
         ],
     )

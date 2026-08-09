@@ -23,10 +23,34 @@ export const Route = createFileRoute("/graph")({
     try {
       return { graph: await api.getGraph() };
     } catch {
-      return { graph: { nodes: [], edges: [] } as GraphData };
+      return { graph: { nodes: [], edges: [], derivedEdges: [] } as GraphData };
     }
   },
 });
+
+/**
+ * Colours for the clusters Louvain finds.
+ *
+ * Eight, cycled. More would be indistinguishable at node size, and a workspace
+ * with more than eight clusters is better read by hovering than by hue. Cluster
+ * membership is also carried by position and by the index below, so colour is
+ * never the only way to tell two groups apart.
+ */
+const COMMUNITY_COLOURS = [
+  "#2563eb",
+  "#2f855a",
+  "#b45309",
+  "#7c3aed",
+  "#0e7490",
+  "#be123c",
+  "#4d7c0f",
+  "#a16207",
+];
+
+function communityColour(community: number | null | undefined): string | null {
+  if (community === null || community === undefined) return null;
+  return COMMUNITY_COLOURS[community % COMMUNITY_COLOURS.length]!;
+}
 
 /** Edge colours read off the CSS custom properties so both themes work. */
 const RELATION_TOKEN: Record<EdgeRelation, string> = {
@@ -105,7 +129,14 @@ function GraphPage() {
   const data = useMemo(
     () => ({
       nodes: graph.nodes.map((n) => ({ ...n })),
-      links: graph.edges.map((e) => ({ ...e })),
+      links: [
+        ...graph.edges.map((e) => ({ ...e, derived: false as const })),
+        // Drawn on the same canvas but never mistakable for an authored edge.
+        // The layout needs them — they are the only thing holding separate saves
+        // together — but a reader has to be able to tell what the agent asserted
+        // from what was merely counted.
+        ...graph.derivedEdges.map((e) => ({ ...e, derived: true as const })),
+      ],
     }),
     [graph],
   );
@@ -177,18 +208,39 @@ function GraphPage() {
             nodeLabel={(node: { label?: string; weight?: number }) =>
               `${node.label} · ${node.weight} source${node.weight === 1 ? "" : "s"}`
             }
-            nodeColor={(node: { id?: string; kind?: string }) =>
-              node.id === hovered
-                ? cssValue("--color-link", "#2563eb")
-                : node.kind === "topic"
-                  ? cssValue("--color-ink", "#1a1815")
-                  : cssValue("--color-ink-faint", "#8a8580")
+            nodeColor={(node: { id?: string; kind?: string; community?: number | null }) => {
+              if (node.id === hovered) return cssValue("--color-link", "#2563eb");
+              // Cluster first, when there is one. Before the first detection run
+              // every community is null, and this falls back to the old
+              // topic/entity distinction rather than colouring everything alike.
+              const byCommunity = communityColour(node.community);
+              if (byCommunity) return byCommunity;
+              return node.kind === "topic"
+                ? cssValue("--color-ink", "#1a1815")
+                : cssValue("--color-ink-faint", "#8a8580");
+            }}
+            linkColor={(link: { relation?: EdgeRelation; derived?: boolean }) =>
+              link.derived
+                ? cssValue("--color-rule", "#e5e1d8")
+                : cssValue(RELATION_TOKEN[link.relation ?? "related_to"], "#ccc")
             }
-            linkColor={(link: { relation?: EdgeRelation }) =>
-              cssValue(RELATION_TOKEN[link.relation ?? "related_to"], "#ccc")
+            linkWidth={(link: { weight?: number; derived?: boolean }) =>
+              link.derived ? 0.4 : 0.6 + (link.weight ?? 0.5)
             }
-            linkWidth={(link: { weight?: number }) => 0.6 + (link.weight ?? 0.5)}
-            linkDirectionalArrowLength={3}
+            linkLineDash={(link: { derived?: boolean }) => (link.derived ? [2, 3] : null)}
+            linkLabel={(link: {
+              derived?: boolean;
+              kind?: string;
+              sharedSources?: number;
+              relation?: EdgeRelation;
+            }) =>
+              link.derived
+                ? `${link.kind === "mentions" ? "appears on" : "appears together in"} ${link.sharedSources} capture${link.sharedSources === 1 ? "" : "s"}`
+                : (link.relation ?? "related to")
+            }
+            // Only authored edges are directional. Co-occurrence has no direction
+            // to claim, and an arrow would invent one.
+            linkDirectionalArrowLength={(link: { derived?: boolean }) => (link.derived ? 0 : 3)}
             linkDirectionalArrowRelPos={1}
             onNodeHover={(node: { id?: string } | null) => setHovered(node?.id ?? null)}
             onNodeClick={(node: { slug?: string | null }) => {

@@ -182,6 +182,9 @@ class GraphNodeOut(Wire):
     kind: Literal["topic", "entity"]
     weight: int
     slug: str | None = None
+    #: Which cluster Louvain put it in. Null before the first detection run.
+    #: A colour index, not an identity — the numbers are reassigned each run.
+    community: int | None = None
 
 
 class GraphEdgeOut(Wire):
@@ -192,9 +195,29 @@ class GraphEdgeOut(Wire):
     weight: float
 
 
+class DerivedEdgeOut(Wire):
+    """An edge computed from where nodes were seen, not asserted by the agent.
+
+    Returned separately from `edges` rather than merged into it. A typed relation
+    is a claim that can be wrong, which is why a compile can be reverted;
+    co-occurrence is a statistic that cannot be wrong, only uninteresting.
+    Merging them would leave a boolean column as the only thing keeping a
+    statistic from reading as a judgement.
+    """
+
+    source: uuid.UUID
+    target: uuid.UUID
+    #: `mentions` — a concept and the page it was found on.
+    #: `co_occurs` — two concepts that keep appearing in the same captures.
+    kind: Literal["mentions", "co_occurs"]
+    #: How many captures support it, which is also how it explains itself.
+    shared_sources: int
+
+
 class GraphOut(Wire):
     nodes: list[GraphNodeOut] = Field(default_factory=list)
     edges: list[GraphEdgeOut] = Field(default_factory=list)
+    derived_edges: list[DerivedEdgeOut] = Field(default_factory=list)
 
 
 # ─── runs / feed ─────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ from .models import (
     CompileRun,
     GraphEdge,
     GraphNode,
+    GraphNodeSource,
     KnowledgeGap,
     RawItem,
     Wiki,
@@ -58,6 +59,7 @@ DERIVED_OWNERSHIP = {
     WikiPageSource: "page_id",
     ClaimSource: "claim_id",
     ChatMessage: "session_id",
+    GraphNodeSource: "node_id",
 }
 
 

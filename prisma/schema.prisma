@@ -152,6 +152,7 @@ model RawItem {
   compileRuns  CompileRun[]
   claimSources ClaimSource[]
   pageSources  WikiPageSource[]
+  graphNodeSources GraphNodeSource[]
   edges        GraphEdge[]
 
   wiki Wiki @relation(fields: [wikiId], references: [id], onDelete: Cascade)
@@ -281,6 +282,29 @@ model WikiPageSource {
 
 // ─── graph ───────────────────────────────────────────────────────────────────
 
+/// Which capture a graph node came out of.
+///
+/// The graph could not connect anything across documents without this. Edges are
+/// written by the compile agent and only between nodes that one compile
+/// established, so nothing ever linked two saves — 68 nodes came out as 28
+/// disconnected components. Recording where each node was seen is what makes
+/// "these two concepts keep appearing together" answerable at all.
+///
+/// Mirrors `wiki_page_sources`, deliberately: same shape, same composite key, so
+/// there is no second pattern to learn.
+model GraphNodeSource {
+  nodeId      String   @map("node_id") @db.Uuid
+  rawItemId   String   @map("raw_item_id") @db.Uuid
+  firstSeenAt DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+
+  node    GraphNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  rawItem RawItem   @relation(fields: [rawItemId], references: [id], onDelete: Cascade)
+
+  @@id([nodeId, rawItemId])
+  @@index([rawItemId], map: "graph_node_sources_item_idx")
+  @@map("graph_node_sources")
+}
+
 model GraphNode {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId String  @map("workspace_id")
@@ -291,6 +315,14 @@ model GraphNode {
   /// how much saved content touches this topic; drives node radius (PRD §6.4)
   weight Int @default(1)
 
+  /// Which cluster Louvain put this node in, or null before the first run.
+  ///
+  /// A plain integer rather than a table: a community has no identity of its own
+  /// beyond "these nodes group together", and the number is reassigned wholesale
+  /// on every detection run. Anything durable hung off it would be wrong by the
+  /// next save.
+  community Int?
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
@@ -298,6 +330,7 @@ model GraphNode {
   outgoingEdges GraphEdge[]     @relation("EdgeSource")
   incomingEdges GraphEdge[]     @relation("EdgeTarget")
   gaps          KnowledgeGap[]
+  sources       GraphNodeSource[]
 
   /// One node per concept per WORKSPACE. This is what lets an edge join a page
   /// in one wiki to a page in another.

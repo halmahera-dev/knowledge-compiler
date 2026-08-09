@@ -25,6 +25,7 @@ from ..models import (
     CompileRun,
     GraphEdge,
     GraphNode,
+    GraphNodeSource,
     KnowledgeGap,
     RawItem,
     WikiClaim,
@@ -40,6 +41,7 @@ from ..schemas import (
 )
 from ..scoping import Scope
 from .anchoring import locate_quote
+from .clustering import detect_communities
 
 log = structlog.get_logger(__name__)
 
@@ -234,6 +236,27 @@ async def _upsert_node(
     return node, True
 
 
+async def _record_node_source(db: AsyncSession, node: GraphNode, raw_item_id: uuid.UUID) -> None:
+    """Note that this capture is where the node was seen.
+
+    Nothing else records it. Edges are only ever written between nodes a single
+    compile established, so without this the graph has no way to know that two
+    concepts came out of the same document — which is the only cheap signal
+    available for connecting one save to another.
+
+    Idempotent: a concept named twice in one document, or a node re-seen on a
+    later compile of the same item, must not fail the compile.
+    """
+    exists = await db.scalar(
+        select(GraphNodeSource).where(
+            GraphNodeSource.node_id == node.id,
+            GraphNodeSource.raw_item_id == raw_item_id,
+        )
+    )
+    if exists is None:
+        db.add(GraphNodeSource(node_id=node.id, raw_item_id=raw_item_id))
+
+
 async def _apply_graph(
     db: AsyncSession, req: ApplyCompileRequest, page: WikiPage, scope: Scope
 ) -> tuple[list[str], list[CompileDiffEdge]]:
@@ -245,6 +268,7 @@ async def _apply_graph(
     )
     if is_new:
         created_labels.append(topic_node.label)
+    await _record_node_source(db, topic_node, req.raw_item_id)
 
     nodes: dict[str, GraphNode] = {topic_node.label.lower(): topic_node}
     for concept in req.concepts[:12]:
@@ -252,6 +276,7 @@ async def _apply_graph(
             continue
         node, is_new = await _upsert_node(db, scope, concept, page_id=None, kind="entity")
         nodes[node.label.lower()] = node
+        await _record_node_source(db, node, req.raw_item_id)
         if is_new:
             created_labels.append(node.label)
 
@@ -405,6 +430,18 @@ async def apply_compile(
 
     node_labels, edges = await _apply_graph(db, req, page, scope)
     gaps = await _apply_gaps(db, req, scope)
+
+    # Recluster after the graph changed rather than on a schedule. A save is the
+    # only thing that moves the topology, and Louvain over a personal knowledge
+    # base is milliseconds — cheap enough that stale clusters are not worth the
+    # complexity of deciding when to refresh them.
+    #
+    # Failure is swallowed: a colour on the graph must never be the reason a
+    # compiled page is lost.
+    try:
+        await detect_communities(db, scope)
+    except Exception:  # noqa: BLE001 — see above.
+        log.warning("community_detection_failed", run_id=str(req.run_id), exc_info=True)
 
     diff = CompileDiff(
         run_id=req.run_id,
