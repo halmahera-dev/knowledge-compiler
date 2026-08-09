@@ -28,7 +28,8 @@
     "test:ts": "turbo run test",
     "test:scripts": "node --test scripts/ apps/extension/",
     "test": "pnpm test:ts && pnpm test:scripts && pnpm api:test",
-    "ccloud": "node scripts/ccloud.mjs"
+    "ccloud": "node scripts/ccloud.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.4",
