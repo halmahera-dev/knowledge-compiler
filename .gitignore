@@ -45,3 +45,6 @@ package-lock.json
 yarn.lock
 
 *.pem
+# Holds a real CockroachDB Cloud service-account key. Same rule as .env: the
+# working copy is yours, the committed one is .mcp.json.example.
+.mcp.json

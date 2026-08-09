@@ -11,6 +11,11 @@
  *   allowlist  add this machine's IP — the reason a correct URL still refuses
  *   migrate    apply migrations to Cloud, scoped to the `kc` schema
  *   backups    the retention actually configured, not the one assumed
+ *   audit      who changed the control plane, and when
+ *
+ * Every call asks for `-o json`. That flag is why the CLI calls itself
+ * agent-ready, and the alternative — splitting the human table on runs of two
+ * spaces — fails by returning the wrong cluster rather than by erroring.
  *
  * Everything shells out to `ccloud`; nothing here reimplements it. The value is
  * in composing it with what this project needs — the schema scoping, the URL
@@ -59,6 +64,59 @@ function ccloud(args, { quiet = false } = {}) {
 }
 
 /**
+ * Runs a ccloud command and parses its structured output.
+ *
+ * `-o json` is a global flag on every ccloud command, and it exists precisely so
+ * that programs stop doing what this script used to do: split the human table on
+ * runs of two spaces and hope. That breaks the first time a column widens, a
+ * cluster name contains a space, or a header changes — and it breaks by
+ * returning the wrong cluster rather than by failing.
+ */
+function ccloudJson(args) {
+  const raw = ccloud([...args, "-o", "json"]);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    die(
+      `ccloud ${args.join(" ")} did not return JSON.`,
+      "Check the CLI version — `-o json` is supported on every command.",
+    );
+  }
+}
+
+/**
+ * The list of clusters, whatever wrapper the CLI puts them in.
+ *
+ * Accepts a bare array or a single-key object holding one, because those are the
+ * two shapes this kind of API uses and picking wrong should not be silent.
+ */
+export function clustersFrom(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object") {
+    for (const value of Object.values(payload)) {
+      if (Array.isArray(value)) return value;
+    }
+  }
+  return [];
+}
+
+/**
+ * A cluster's name, or an error naming what was there instead.
+ *
+ * The field is `name` in every output documented, but this is the value that
+ * decides which cluster a migration runs against — so an unrecognised shape
+ * stops the script rather than letting `undefined` through to a command that
+ * would then act on the wrong thing.
+ */
+export function nameOf(cluster) {
+  for (const key of ["name", "Name", "cluster_name", "clusterName"]) {
+    const value = cluster?.[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return null;
+}
+
+/**
  * The cluster to act on.
  *
  * Taken from the argument, else CC_CLUSTER, else the only cluster there is.
@@ -68,18 +126,21 @@ function clusterName(explicit) {
   if (explicit) return explicit;
   if (process.env.CC_CLUSTER) return process.env.CC_CLUSTER;
 
-  const rows = ccloud(["cluster", "list"])
-    .split("\n")
-    .slice(1)
-    .map((l) => l.trim().split(/\s{2,}/))
-    .filter((cols) => cols.length > 1 && cols[0]);
+  const clusters = clustersFrom(ccloudJson(["cluster", "list"]));
+  const names = clusters.map(nameOf);
 
-  if (rows.length === 1) return rows[0][0];
-  if (rows.length === 0) die("No clusters in this organization.", "Create one: ccloud cluster create basic");
-  die(
-    `${rows.length} clusters found — name the one you mean.`,
-    `Clusters: ${rows.map((r) => r[0]).join(", ")}`,
-  );
+  if (names.some((name) => name === null)) {
+    die(
+      "Could not read a cluster name from ccloud's JSON.",
+      `Keys present: ${Object.keys(clusters[0] ?? {}).join(", ") || "(none)"}`,
+    );
+  }
+
+  if (names.length === 1) return names[0];
+  if (names.length === 0) {
+    die("No clusters in this organization.", "Create one: ccloud cluster create basic");
+  }
+  die(`${names.length} clusters found — name the one you mean.`, `Clusters: ${names.join(", ")}`);
 }
 
 /**
@@ -101,10 +162,34 @@ export function withKnowledgeBase(url, database = "knowledge_base") {
   );
 }
 
-/** The `postgres…` line out of whatever ccloud printed. */
-export function connectionUrl(raw) {
-  const trimmed = raw.trim();
-  return trimmed.split("\n").find((l) => l.trim().startsWith("postgres"))?.trim() ?? trimmed;
+/**
+ * The connection string out of `cluster connection-string -o json`.
+ *
+ * That command reports the URL as a field. The previous approach ran
+ * `cluster sql --connection-url` and scanned the output for a line beginning
+ * "postgres", which worked only while nothing else the CLI printed happened to
+ * start that way — a banner, a warning, a second URL — and would have picked the
+ * wrong line without saying so.
+ */
+export function connectionUrlFrom(payload) {
+  for (const key of ["connection_url", "connectionUrl", "url"]) {
+    const value = payload?.[key];
+    if (typeof value === "string" && value.startsWith("postgres")) return value;
+  }
+  return null;
+}
+
+/** The cluster's connection string, pointed at this project's database. */
+function connectionString(cluster) {
+  const payload = ccloudJson(["cluster", "connection-string", cluster]);
+  const url = connectionUrlFrom(payload);
+  if (!url) {
+    die(
+      "ccloud returned no connection URL.",
+      `Keys present: ${Object.keys(payload ?? {}).join(", ") || "(none)"}`,
+    );
+  }
+  return withKnowledgeBase(url);
 }
 
 const COMMANDS = {
@@ -135,9 +220,7 @@ const COMMANDS = {
    */
   url(name) {
     const cluster = clusterName(name);
-    const withDatabase = withKnowledgeBase(
-      connectionUrl(ccloud(["cluster", "sql", "--connection-url", cluster])),
-    );
+    const withDatabase = connectionString(cluster);
     console.error("  This contains a password. Do not paste it into a shared terminal.\n");
     console.log(`COCKROACH_URL="${withDatabase}"`);
   },
@@ -177,9 +260,7 @@ const COMMANDS = {
    */
   migrate(name) {
     const cluster = clusterName(name);
-    const url = withKnowledgeBase(
-      connectionUrl(ccloud(["cluster", "sql", "--connection-url", cluster])),
-    );
+    const url = connectionString(cluster);
 
     console.log(`  Applying migrations to ${cluster}…`);
     execSync("node scripts/migrate.mjs deploy", {
@@ -207,14 +288,52 @@ const COMMANDS = {
     }
   },
 
+  /**
+   * Who did what to the control plane.
+   *
+   * The judging question this answers is "has the team thought about access
+   * control", and an allowlist is only half of it — the other half is being able
+   * to say afterwards who changed the cluster, and when. `ccloud audit list`
+   * already records it; the value here is reading it as JSON so it can be
+   * filtered and diffed rather than eyeballed.
+   *
+   * Defaults to the last seven days. An unbounded audit query on a busy
+   * organization returns a wall of text nobody reads.
+   */
+  audit(days) {
+    const window = Number(days ?? 7);
+    if (!Number.isFinite(window) || window <= 0) {
+      die("Days must be a positive number.", "Example: pnpm ccloud audit 14");
+    }
+
+    const since = new Date(Date.now() - window * 24 * 60 * 60 * 1000).toISOString();
+    const payload = ccloudJson(["audit", "list", "--limit", "50", "--starting-from", since]);
+    const entries = clustersFrom(payload);
+
+    console.log(`\n  Control-plane activity since ${since.slice(0, 10)}`);
+    if (entries.length === 0) {
+      console.log("    nothing recorded in this window\n");
+      return;
+    }
+
+    for (const entry of entries) {
+      // Field names are read defensively rather than assumed: this is a report,
+      // so an unfamiliar shape should degrade to showing what is there.
+      const when = entry.time ?? entry.timestamp ?? entry.created_at ?? "";
+      const who = entry.user ?? entry.actor ?? entry.email ?? "unknown";
+      const what = entry.action ?? entry.event ?? entry.name ?? JSON.stringify(entry);
+      const where = entry.cluster ?? entry.cluster_name ?? "";
+      console.log(`    ${String(when).slice(0, 19).padEnd(20)} ${String(who).padEnd(28)} ${what}${where ? ` — ${where}` : ""}`);
+    }
+    console.log();
+  },
+
   /** Point .env at the cluster, keeping a copy of what was there. */
   use(name) {
     const cluster = clusterName(name);
     if (!existsSync(ENV_FILE)) die(".env not found.", "Copy .env.example to .env first.");
 
-    const url = withKnowledgeBase(
-      connectionUrl(ccloud(["cluster", "sql", "--connection-url", cluster])),
-    );
+    const url = connectionString(cluster);
 
     const before = readFileSync(ENV_FILE, "utf8");
     writeFileSync(`${ENV_FILE}.local-backup`, before);
@@ -253,6 +372,7 @@ function main([command, name]) {
     pnpm ccloud allowlist  [cluster]   let this machine's IP reach the cluster
     pnpm ccloud migrate    [cluster]   apply migrations, keeping vector indexes
     pnpm ccloud backups    [cluster]   the retention behind "durable memory"
+    pnpm ccloud audit      [days]      who changed the control plane, and when
 
   The cluster is taken from the argument, else CC_CLUSTER, else the only one
   present. With several clusters and no name given, it refuses rather than picks.

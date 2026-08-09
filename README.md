@@ -110,10 +110,22 @@ Named against the code that uses them, rather than in the abstract.
 | Tool | Where | What it does here |
 | --- | --- | --- |
 | **Distributed vector indexing** | [`matching.py`](apps/api/app/services/matching.py), [`retrieval.py`](apps/api/app/services/retrieval.py), `prisma/migrations/*/migration.sql` | Native `VECTOR(1024)` columns on `raw_items` and `wiki_pages`, with `CREATE VECTOR INDEX` on both and cosine (`<=>`) k-NN over them. |
-| **ccloud CLI** | [`scripts/ccloud.mjs`](scripts/ccloud.mjs) — `pnpm ccloud` | Six commands over the Cloud control plane: cluster health, connection string, IP allowlist, migrations, backup retention. |
-| **Cloud Managed MCP Server** | [`.mcp.json`](.mcp.json) | Connects an MCP client to the cluster, so the agent can read schemas, inspect running queries, and run read-only SQL against the live database. |
+| **ccloud CLI** | [`scripts/ccloud.mjs`](scripts/ccloud.mjs) — `pnpm ccloud` | Seven commands over the Cloud control plane: cluster health, connection string, IP allowlist, migrations, backup retention, and the control-plane audit log. Every call uses `-o json`. |
+| **Cloud Managed MCP Server** | [`.mcp.json.example`](.mcp.json.example) | Connects an MCP client to the cluster, so the agent can read schemas, inspect running queries, and run read-only SQL against the live database. |
 
 The fourth tool, the Agent Skills repo, is not used.
+
+**`-o json`, not the printed table.** The CLI advertises JSON output on every
+command, and that is the difference between reading it and guessing at it. An
+earlier version of this script split `cluster list` on runs of two spaces —
+which works until a column widens or a name contains one, and then fails by
+selecting a different cluster rather than by erroring. The parsers now refuse an
+unfamiliar payload and print the keys they did find, because the value being
+read decides which cluster gets migrated.
+
+`pnpm ccloud audit` reads the control-plane log the same way. An IP allowlist
+answers who *can* reach the cluster; the audit log is the other half — who
+actually changed it, and when.
 
 **The vector index sits on the write path, which is the whole point.** Most
 projects reach for a vector index at read time — embed the question, retrieve
