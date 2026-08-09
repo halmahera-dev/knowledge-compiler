@@ -168,12 +168,26 @@ No credentials appear in the file because the endpoint advertises OAuth 2.1
 on first use and stores the token itself. You need **Cluster Admin** or **Cluster
 Operator** on the target cluster.
 
-For an autonomous pipeline with no browser, use a service account key instead and
-add the header — keeping the key in the environment, never in the file:
+`.mcp.json` also carries a service-account header for pipelines with no browser.
+The key is read from the environment and is never written into the file:
 
 ```json
 "headers": { "Authorization": "Bearer ${CC_API_KEY}" }
 ```
+
+```bash
+export CC_API_KEY=...   # from Cloud Console → Access Management → Service Accounts
+```
+
+The literal is not an option worth taking. This file is committed, and a key
+pasted into it is a key published the moment the repository is — an accident
+that is one paste away and needs the key rotated, not edited.
+
+**A service account sees only the clusters its roles name.** Authenticating and
+seeing nothing look identical from the client: `list_clusters` returns
+`{"rows":[]}` either way. If it comes back empty, grant the account **Cluster
+Admin** or **Cluster Operator** on the cluster and check it belongs to the same
+organization as the key.
 
 Write tools (`create_database`, `create_table`, `insert_rows`) are off unless
 explicitly enabled, and destructive SQL is not exposed at all — so this cannot
