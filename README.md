@@ -137,6 +137,66 @@ read decides which cluster gets migrated.
 answers who *can* reach the cluster; the audit log is the other half — who
 actually changed it, and when.
 
+### What the agent actually does with each
+
+Two different agents are involved, and conflating them would overstate the case.
+The **compile agent** is the Mastra service that runs inside the product on every
+save. The **operating agent** is whatever coding agent has the repository open —
+Claude Code here — which is precisely who ccloud, the MCP server and Agent Skills
+are built for.
+
+**Distributed vector indexing — the compile agent, on every save and every
+question.** This is the one on the product's hot path, and the call is traceable
+end to end. The pipeline's `match` step calls `searchSimilarPages()`
+([`compile-item.ts`](apps/agent/src/mastra/workflows/compile-item.ts)), which
+posts to `/internal/match`, which runs
+
+```sql
+ORDER BY embedding <=> CAST(:query_vector AS VECTOR(1024)) LIMIT :limit
+```
+
+against `wiki_pages_embedding_idx`. The agent gets back the nearest pages and the
+provider's calibrated threshold, and its `compile` step uses them to decide
+`create`, `merge` or `addendum` — the single decision the whole product turns on.
+The same index answers the copilot at read time through
+[`retrieval.py`](apps/api/app/services/retrieval.py). Two jobs, one index, no
+separate vector store to keep consistent with the operational data.
+
+**ccloud CLI — the operating agent, against the control plane.**
+[`scripts/ccloud.mjs`](scripts/ccloud.mjs) is what the agent runs instead of
+being told connection strings. It asks the control plane which clusters exist,
+fetches the connection string as JSON and rewrites it onto the `kc` schema, adds
+the current machine to the SQL allowlist, applies migrations through the
+project's own migrate script so the vector indexes survive, reads backup
+retention, and reads the audit log. Every call passes `-o json`, so the agent
+parses fields rather than a table it might read wrongly — a distinction that
+matters here because the value it reads decides which database gets migrated.
+
+**Managed MCP Server — the operating agent, against the live cluster.**
+[`.mcp.json.example`](.mcp.json.example) connects a client with no proxy in
+between, so the agent can list databases, read a table's schema, run read-only
+SQL and inspect running queries while working on the code — instead of guessing
+at the schema from `schema.prisma` and finding out at runtime. The connection is
+verified: the endpoint completes the handshake and advertises twelve tools.
+Destructive SQL is not exposed at all, which is what makes it safe to leave
+connected against a database shared with an unrelated project.
+
+**Agent Skills — the operating agent, before it makes the mistake.** The four in
+[`skills/`](skills/) are read at the moment they apply, and each is a failure
+this repository already absorbed: dropping another application's tables through
+an unpinned Prisma connection, losing a vector index to a migration that keeps
+re-emitting `DROP INDEX`, putting k-NN on the read path where it never
+consolidates, and `coalesce(sum(int_col), 0)` being rejected outright. Three of
+the four are invisible when they happen — a successful migration, a correct query
+that now scans, a store that quietly never merges.
+
+**What is exercised, and what is only wired.** The vector index runs on every
+save in this repository, and the ccloud wrapper's parsing is covered by tests.
+The MCP connection is verified as far as the handshake and tool list; a service
+account with no cluster role returns `{"rows":[]}` from `list_clusters`, which is
+indistinguishable from an empty organization, so grant it Cluster Admin or
+Cluster Operator before trusting that surface.
+
 **The vector index sits on the write path, which is the whole point.** Most
 projects reach for a vector index at read time — embed the question, retrieve
 neighbours, answer. Here `matching.py` runs its k-NN *while compiling a save*, to
