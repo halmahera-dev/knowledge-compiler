@@ -112,8 +112,18 @@ Named against the code that uses them, rather than in the abstract.
 | **Distributed vector indexing** | [`matching.py`](apps/api/app/services/matching.py), [`retrieval.py`](apps/api/app/services/retrieval.py), `prisma/migrations/*/migration.sql` | Native `VECTOR(1024)` columns on `raw_items` and `wiki_pages`, with `CREATE VECTOR INDEX` on both and cosine (`<=>`) k-NN over them. |
 | **ccloud CLI** | [`scripts/ccloud.mjs`](scripts/ccloud.mjs) — `pnpm ccloud` | Seven commands over the Cloud control plane: cluster health, connection string, IP allowlist, migrations, backup retention, and the control-plane audit log. Every call uses `-o json`. |
 | **Cloud Managed MCP Server** | [`.mcp.json.example`](.mcp.json.example) | Connects an MCP client to the cluster, so the agent can read schemas, inspect running queries, and run read-only SQL against the live database. |
+| **Agent Skills** | [`skills/`](skills/) | Four machine-executable skills in the upstream format, each encoding a CockroachDB failure this codebase hit and diagnosed. Validated by `pnpm test:scripts`. |
 
-The fourth tool, the Agent Skills repo, is not used.
+All four tools are used.
+
+The skills are the ones a general collection cannot contain, because each is
+about the seam between CockroachDB and a particular tool: Prisma Migrate
+dropping another application's tables on a shared database, a vector index the
+migration tool re-emits `DROP INDEX` for on every migration, k-NN belonging on
+the write path rather than the read path, and `coalesce(sum(int_col), 0)` being
+rejected outright. Every one is drawn from a fix in this repository, and the
+file that demonstrates it is named in the skill. Upstream's general collection
+installs alongside them with `npx skills add cockroachlabs/cockroachdb-skills`.
 
 **`-o json`, not the printed table.** The CLI advertises JSON output on every
 command, and that is the difference between reading it and guessing at it. An
