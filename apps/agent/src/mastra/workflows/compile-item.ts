@@ -313,28 +313,60 @@ const link = createStep({
   inputSchema: afterCompile,
   outputSchema: afterLink,
   execute: async ({ inputData }) => {
-    const { runId, extraction, compilation } = inputData;
+    const { runId, extraction, compilation, candidates, targetPageId } = inputData;
     await reportStep(runId, "link", "Connecting this into the graph");
 
     // The node labels the API will actually create. Constraining the model to this
     // list is what stops it proposing edges between nodes that do not exist.
     const available = [compilation.title, ...extraction.concepts];
 
+    /*
+     * Pages elsewhere in the workspace this document may also link to.
+     *
+     * Cross-document edges are the ones worth having — a `contradicts` between
+     * two things read weeks apart is the argument for compiling rather than
+     * retrieving — and until now they were impossible: the API accepted edges
+     * only between nodes a single compile established.
+     *
+     * These are the neighbours the match step already found, so they cost
+     * nothing extra and are relevant by construction. The merge target is left
+     * out: this compile folds into that page, so an edge to it would have a page
+     * extending itself.
+     *
+     * The list is advisory. The API re-derives its own from the item's stored
+     * embedding and accepts nothing outside it, so text injected into a source
+     * cannot reach a topic of its choosing by naming one here.
+     */
+    const existingPages = candidates
+      .filter((candidate) => candidate.pageId !== targetPageId)
+      .map((candidate) => candidate.title);
+
     const linkage = await generateStructured(
       linkerAgent,
       `Page: ${compilation.title}
 Summary: ${compilation.summary}
 
-Available nodes — use these labels EXACTLY, and only these:
+Nodes from this document — use these labels EXACTLY:
 ${available.map((label) => `- ${label}`).join("\n")}
-
+${
+  existingPages.length > 0
+    ? `
+Pages already in this knowledge base, on related topics. You may link to these
+too, using their titles EXACTLY. Only where a relationship genuinely holds — a
+contradiction or a prerequisite across two sources is worth far more than a vague
+"related", and a wrong one is worse than none:
+${existingPages.map((title) => `- ${title}`).join("\n")}`
+    : ""
+}
 Draw the typed relationships that genuinely hold between them, and raise any real
 knowledge gap this page exposes.`,
       linkageSchema,
       { runId, step: "link" },
     );
 
-    const valid = new Set(available.map((label) => label.trim().toLowerCase()));
+    const valid = new Set(
+      [...available, ...existingPages].map((label) => label.trim().toLowerCase()),
+    );
     const edges = linkage.edges.filter(
       (edge) =>
         valid.has(edge.source.trim().toLowerCase()) &&
