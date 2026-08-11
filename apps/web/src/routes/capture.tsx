@@ -529,8 +529,16 @@ function CapturePage() {
   );
 }
 
-/** Where the packed extension lives. Empty until it is published. */
+/** The Web Store listing, once there is one. Empty until then. */
 const STORE_URL = "";
+
+/**
+ * The packed folder, built from apps/extension by scripts/pack-extension.mjs and
+ * served out of public/. Offered because there is no listing yet — and it is
+ * regenerated on every build rather than committed, so it cannot fall behind the
+ * source it came from.
+ */
+const EXTENSION_ZIP = "/knowledge-compiler-extension.zip";
 
 /**
  * The extension tab.
@@ -558,19 +566,24 @@ function ExtensionPanel() {
         <li>It lands in whichever workspace is open here, under this account.</li>
       </ul>
 
-      {STORE_URL ? (
-        <a
-          href={STORE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-5 inline-flex h-11 items-center rounded-md bg-ink px-5 text-small font-medium text-paper transition-opacity duration-fast hover:opacity-90"
-        >
-          Add to Chrome
-        </a>
-      ) : (
+      {/* Packed from apps/extension on every build, so the download cannot drift
+          behind the source — a stale extension that loads and then fails to save
+          is worse than no download. */}
+      <a
+        href={STORE_URL || EXTENSION_ZIP}
+        {...(STORE_URL
+          ? { target: "_blank", rel: "noopener noreferrer" }
+          : { download: "knowledge-compiler-extension.zip" })}
+        className="mt-5 inline-flex h-11 items-center rounded-md bg-ink px-5 text-small font-medium text-paper transition-opacity duration-fast hover:opacity-90"
+      >
+        {STORE_URL ? "Add to Chrome" : "Download the extension"}
+      </a>
+
+      {!STORE_URL && (
         <div className="mt-5 border-t border-rule pt-4">
-          <p className="eyebrow">Not published yet — load it unpacked</p>
+          <p className="eyebrow">Then, once</p>
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-small leading-relaxed text-ink-muted">
+            <li>Unzip it anywhere you will not delete by accident.</li>
             <li>
               Open{" "}
               <code className="rounded-sm bg-sunken px-1 font-mono text-micro">
@@ -579,23 +592,20 @@ function ExtensionPanel() {
               and turn on Developer mode.
             </li>
             <li>
-              Choose <span className="text-ink">Load unpacked</span>, then the{" "}
-              <code className="rounded-sm bg-sunken px-1 font-mono text-micro">apps/extension</code>{" "}
-              folder.
-            </li>
-            <li>
-              Copy the extension id onto{" "}
-              <code className="rounded-sm bg-sunken px-1 font-mono text-micro">
-                BETTER_AUTH_TRUSTED_ORIGINS
-              </code>{" "}
-              and restart the app, or every save is refused.
+              Choose <span className="text-ink">Load unpacked</span> and pick the unzipped folder.
             </li>
           </ol>
-          {/* chrome:// cannot be linked from a page either — Chrome blocks the
-              navigation — so the address is given as text to copy. */}
+
+          <p className="mt-4 text-small leading-relaxed text-ink-muted">
+            That is all. It already knows this app on{" "}
+            <code className="rounded-sm bg-sunken px-1 font-mono text-micro">localhost</code>,{" "}
+            <code className="rounded-sm bg-sunken px-1 font-mono text-micro">127.0.0.1</code> and
+            the server, and saves to whichever one you have open — no address or port to set.
+          </p>
+
           <p className="mt-3 text-micro leading-relaxed text-ink-faint">
             Chrome does not allow a website to install an extension, or even to
-            open its own settings page. Both steps have to be yours.
+            open its own settings page. Those two steps have to be yours.
           </p>
         </div>
       )}

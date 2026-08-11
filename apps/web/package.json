@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
-    "build": "vite build",
+    "dev": "node ../../scripts/pack-extension.mjs && vite dev --port 3000",
+    "build": "node ../../scripts/pack-extension.mjs && vite build",
     "start": "vite preview --port 3000 --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

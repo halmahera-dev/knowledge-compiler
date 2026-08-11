@@ -5,8 +5,12 @@
   "description": "Save what you are reading into your compiled knowledge base, from the toolbar or the right-click menu.",
   "permissions": ["activeTab", "scripting", "storage", "contextMenus", "notifications"],
   "host_permissions": [
+    "http://localhost:3000/*",
     "http://localhost:8000/*",
-    "http://localhost:3000/*"
+    "http://127.0.0.1:3000/*",
+    "http://127.0.0.1:8000/*",
+    "http://34.228.186.46:3000/*",
+    "http://34.228.186.46:8000/*"
   ],
   "optional_host_permissions": [
     "http://*/*",

@@ -39,25 +39,25 @@ repeat.
 
 ## Install
 
-1. Start the stack (`pnpm dev` from the repo root) — both the API and the web app
-   must be running; see [Authentication](#authentication) for why.
-2. Open `chrome://extensions` (or `about:debugging` in Firefox).
-3. Enable **Developer mode**.
-4. **Load unpacked** → select this directory.
-5. Copy the extension **ID** Chrome now shows on that card, and add it to `.env`
-   at the repo root:
+1. Download it from the app's Capture page, under **Browser extension**, and
+   unzip it. (Or use `apps/extension` straight from the repository — same files.)
+2. Open `chrome://extensions`, turn on **Developer mode**, choose **Load
+   unpacked**, and pick the folder.
+3. Copy the extension **ID** from its card onto `BETTER_AUTH_TRUSTED_ORIGINS` in
+   the environment the app runs in, then restart the app:
 
    ```
    BETTER_AUTH_TRUSTED_ORIGINS="chrome-extension://<the id you just copied>"
    ```
 
-6. Restart the web app so it picks the value up.
+Step 3 is not optional. The app will not hand a token to an origin it has not
+been told about, so without it every save fails at the mint.
 
-Skipping steps 5–6 leaves clipping broken: the app will not hand a token to an
-origin it does not know, so every save fails at the mint.
-
-The popup's two fields — **API** (`http://localhost:8000`) and **App**
-(`http://localhost:3000`) — are remembered across sessions.
+**No address to configure.** The extension knows the environments this project
+runs in — `localhost`, `127.0.0.1` and the server — and works out which one to
+save to at the moment you save: whichever has the app open in a tab, else
+whichever answers with a session. The popup's API and App fields are still
+there for anything else, and typing one overrides the automatic answer.
 
 ## Going to production
 
@@ -79,30 +79,21 @@ Pick one:
 The extension now names the id in the error when this happens, so the fix is
 visible rather than guessed at.
 
-**2. `config.js`** — set `DEFAULT_API` and `DEFAULT_APP` to the deployed URLs, so
-nobody has to type them into the popup on first use.
+**2. Another address.** The three this project runs at are already listed in
+`config.js` and granted in `manifest.json`, so nothing needs editing to reach
+them. For a *different* deployment, append it to `ENVIRONMENTS` and add both
+origins to `host_permissions` — the manifest cannot read `config.js`, so they are
+kept in step by hand, and a test fails if they drift. Anything not on the list
+can still be reached by typing it into the popup, which asks Chrome for
+permission at that point.
 
-**3. Reaching a non-localhost origin at all.** Only localhost ships as a required
-permission. Everything else is `optional_host_permissions`, granted at runtime —
-which is what lets one unmodified build work against any deployment. Two ways to
-satisfy it, and the right one depends on who installs it:
-
-- **A build for one known deployment** — put the two production origins in
-  `host_permissions` in `manifest.json` and drop the localhost pair. Granted at
-  install, so the right-click menu works on first use.
-- **A build people point at their own instance** — change nothing. The popup
-  asks Chrome for whatever URLs are in its API and App fields, the first time
-  Save is pressed.
-
-The second option has one edge worth knowing: `chrome.permissions.request` needs
-a user gesture from an extension page, which the service worker is not. So on a
-fresh install the *right-click* path cannot raise the prompt itself. It reports
-what to do instead of failing opaquely — open the popup and press Save once —
-after which the context menu works everywhere.
-
-Before this, the popup accepted any URL and Chrome blocked the request before it
-was made: the fields promised something the manifest forbade, and the resulting
-failure was indistinguishable from being signed out.
+**3. Reaching an origin at all.** Everything in `ENVIRONMENTS` is a required
+permission, granted at install, so both the toolbar and the right-click menu work
+immediately. Origins outside it are optional and granted at runtime — and there
+`chrome.permissions.request` needs a user gesture from an extension page, which
+the service worker is not. So on a fresh install the right-click path cannot
+raise the prompt itself; it says to open the popup and press Save once, after
+which the context menu works everywhere.
 
 **4. Production environment** — on the server:
 
@@ -154,10 +145,9 @@ is unreachable, `pnpm dev` is not running.
 1. **Decide the id first**, before anything else. Either add a `"key"` to
    `manifest.json` so it is stable everywhere, or publish to the Web Store and
    take the id it assigns. Everything below depends on knowing it.
-2. `config.js` → set `DEFAULT_API` and `DEFAULT_APP` to the deployed URLs.
-3. `manifest.json` → replace the two localhost entries in `host_permissions`
-   with the deployed origins. (Skip only if you are shipping a build users point
-   at their own instance — see §3 above.)
+2. Nothing to configure for `localhost`, `127.0.0.1` or the server — they are
+   already listed. For any other address, add it to `ENVIRONMENTS` in
+   `config.js` and to `host_permissions` in `manifest.json`.
 4. Server env: `BETTER_AUTH_TRUSTED_ORIGINS="chrome-extension://<production
    id>"`, `BETTER_AUTH_URL` = the deployed app URL, `CORS_ORIGINS` = the deployed
    web origin, `INTERNAL_API_TOKEN` = a real secret. Restart.

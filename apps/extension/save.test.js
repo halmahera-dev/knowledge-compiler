@@ -10,6 +10,7 @@
  * one test file does not justify starting.
  */
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 
 import { originPattern, originsFor, titleFromText } from "./save.js";
@@ -79,5 +80,53 @@ describe("titleFromText", () => {
     // A single long token would otherwise pass through at full length.
     const title = titleFromText("x".repeat(200), 70);
     assert.ok(title.length <= 71, `got ${title.length}`);
+  });
+});
+
+describe("environments", () => {
+  it("every environment's origins are in the manifest", async () => {
+    // The manifest cannot read config.js, so the two are kept in step by hand.
+    // Drift is silent in the worst way: Chrome blocks the request before it is
+    // made, and a `credentials: "include"` fetch without host access drops the
+    // session cookie — so it surfaces as "you are signed out", not as a
+    // permissions problem.
+    const { ENVIRONMENTS } = await import("./config.js");
+    const manifest = JSON.parse(
+      await readFile(new URL("./manifest.json", import.meta.url), "utf8"),
+    );
+    const granted = new Set(manifest.host_permissions);
+
+    for (const env of ENVIRONMENTS) {
+      for (const base of [env.app, env.api]) {
+        assert.ok(
+          granted.has(`${base}/*`),
+          `${base}/* missing from manifest host_permissions (needed by "${env.label}")`,
+        );
+      }
+    }
+  });
+
+  it("covers the three addresses this project runs at", async () => {
+    const { ENVIRONMENTS } = await import("./config.js");
+    const hosts = ENVIRONMENTS.map((env) => new URL(env.app).hostname);
+    for (const host of ["localhost", "127.0.0.1", "34.228.186.46"]) {
+      assert.ok(hosts.includes(host), `no environment for ${host}`);
+    }
+  });
+
+  it("pairs each app with an API on the same host", async () => {
+    // The app is where the session lives and the API is where the item goes.
+    // Crossing them mints a token one host will not accept from the other.
+    const { ENVIRONMENTS } = await import("./config.js");
+    for (const env of ENVIRONMENTS) {
+      assert.equal(new URL(env.app).hostname, new URL(env.api).hostname, env.label);
+    }
+  });
+
+  it("has a default that is one of the environments", async () => {
+    const { ENVIRONMENTS, DEFAULT_APP, DEFAULT_API } = await import("./config.js");
+    const match = ENVIRONMENTS.find((env) => env.app === DEFAULT_APP);
+    assert.ok(match, "DEFAULT_APP is not in ENVIRONMENTS");
+    assert.equal(match.api, DEFAULT_API);
   });
 });

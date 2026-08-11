@@ -9,18 +9,94 @@
  * about either.
  */
 
-export { DEFAULT_API, DEFAULT_APP } from "./config.js";
-import { DEFAULT_API, DEFAULT_APP } from "./config.js";
+export { DEFAULT_API, DEFAULT_APP, ENVIRONMENTS } from "./config.js";
+import { DEFAULT_API, DEFAULT_APP, ENVIRONMENTS } from "./config.js";
 
 /** Thrown when there is no session to borrow. Handled, not displayed raw. */
 export const NOT_SIGNED_IN = "NOT_SIGNED_IN";
 
+/**
+ * Which environment to save to.
+ *
+ * Worked out rather than configured. Asking people to type two URLs before their
+ * first clip was the old design, and getting it wrong produced a failure
+ * indistinguishable from being signed out — so most of the cost landed on
+ * whoever had to diagnose it.
+ *
+ * Three sources, cheapest first:
+ *
+ *   1. What was chosen explicitly in the popup, if anything. A typed URL always
+ *      wins; the automatic answer is a default, not an override.
+ *   2. The environment already open in a tab. The extension borrows that page's
+ *      session anyway, so wherever the app is open is by definition where the
+ *      clip belongs — and reading it costs nothing.
+ *   3. Failing that, ask each in turn which one has a session, and remember the
+ *      answer.
+ */
 export async function getBases() {
-  const stored = await chrome.storage.sync.get(["apiBase", "appBase"]);
-  return {
-    api: (stored.apiBase || DEFAULT_API).replace(/\/$/, ""),
-    app: (stored.appBase || DEFAULT_APP).replace(/\/$/, ""),
-  };
+  const stored = await chrome.storage.sync.get(["apiBase", "appBase", "resolvedApp"]);
+  if (stored.apiBase && stored.appBase) {
+    return { api: trim(stored.apiBase), app: trim(stored.appBase) };
+  }
+
+  const open = await environmentInATab();
+  if (open) return { api: open.api, app: open.app };
+
+  const remembered = ENVIRONMENTS.find((env) => env.app === stored.resolvedApp);
+  if (remembered) return { api: remembered.api, app: remembered.app };
+
+  const found = await environmentWithASession();
+  if (found) {
+    // Remembered rather than saved as a setting: the next resolve skips the
+    // probing, but an explicit choice in the popup still overrides it.
+    try {
+      await chrome.storage.sync.set({ resolvedApp: found.app });
+    } catch {
+      // Storage quota or private mode. Costs a probe next time, nothing more.
+    }
+    return { api: found.api, app: found.app };
+  }
+
+  return { api: DEFAULT_API, app: DEFAULT_APP };
+}
+
+const trim = (url) => url.replace(/\/$/, "");
+
+/** The environment whose app is open right now, if one is. */
+async function environmentInATab() {
+  try {
+    for (const env of ENVIRONMENTS) {
+      const tabs = await chrome.tabs.query({ url: `${env.app}/*` });
+      if (tabs.length > 0) return env;
+    }
+  } catch {
+    // No tabs permission for those origins yet. Fall through to probing.
+  }
+  return null;
+}
+
+/** The first environment that answers with a session. */
+async function environmentWithASession() {
+  for (const env of ENVIRONMENTS) {
+    try {
+      const response = await fetch(`${env.app}/api/auth/token`, { credentials: "include" });
+      // 401 means the app is up but nobody is signed in there — a real answer,
+      // and a reason to keep looking rather than to stop.
+      if (response.ok) return env;
+    } catch {
+      // Not running. Try the next.
+    }
+  }
+  return null;
+}
+
+/** Forget the remembered environment. Called when a save is refused. */
+export async function forgetResolvedEnvironment() {
+  try {
+    await chrome.storage.sync.remove("resolvedApp");
+  } catch {
+    // Nothing to do; the next resolve probes again anyway.
+  }
 }
 
 /** `https://api.example.com/path` → `https://api.example.com/*`, the match form. */
@@ -66,17 +142,16 @@ async function diagnose(appBase) {
   try {
     await fetch(`${appBase}/api/auth/token`, { mode: "no-cors", credentials: "include" });
   } catch {
-    // "Is it running?" is the right question for a developer whose stack is
-    // down, and the wrong one for someone using a deployed instance — there the
-    // answer is that the extension was never pointed at it. The extension has no
-    // build step, so it ships with the development defaults and keeps them until
-    // somebody changes them, which is easy to miss when everything else moved to
-    // a server.
+    // Which sentence is useful depends on whether the address was worked out or
+    // typed. Reaching a loopback address means every known environment was tried
+    // and none answered, so "is it running" is the right question. A typed
+    // address that fails is more likely a wrong address than a stopped server.
+    await forgetResolvedEnvironment();
     if (isLocalhost(appBase)) {
       return [
-        `Nothing is running at ${appBase}, which is where this extension still points.`,
-        "If your app is deployed, put its URL in the App and API fields below and press Save —",
-        "the extension will ask permission for that address the first time.",
+        `Nothing answered at ${appBase}, and the deployed address did not either.`,
+        "Start the app locally, or open it in a tab and try again —",
+        "the extension saves to whichever one it finds.",
       ].join(" ");
     }
     return `Could not reach the app at ${appBase}. Is it running?`;
