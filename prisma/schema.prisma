@@ -525,3 +525,40 @@ model AiUsageEvent {
   @@index([workspaceId, operation, createdAt(sort: Desc)], map: "ai_usage_workspace_op_idx")
   @@map("ai_usage_events")
 }
+
+/// A cluster Louvain found, and what it is about.
+///
+/// Keyed by a fingerprint of its membership rather than by the community number.
+/// The numbers are reassigned on every detection run — cluster 3 today is a
+/// different set of nodes tomorrow — so a summary stored against a number would
+/// quietly end up describing something else. The fingerprint is what makes a
+/// summary reusable: unchanged membership means the paragraph still holds, and a
+/// model call is skipped.
+model GraphCommunity {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id")
+
+  /// sha256 of the sorted member node ids. Stable across renumbering.
+  fingerprint String
+
+  /// The number this cluster currently carries, for joining to graph_nodes.
+  /// Rewritten on every run; never use it to identify a cluster over time.
+  community Int
+
+  /// A few words a reader would recognise, and a couple of sentences on what
+  /// the cluster covers. Null until a summary has been generated.
+  title   String?
+  summary String?
+
+  nodeCount Int @default(0) @map("node_count")
+  pageCount Int @default(0) @map("page_count")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  /// When the prose was written. Null while only the membership is known.
+  summarisedAt DateTime? @map("summarised_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, fingerprint], map: "graph_communities_workspace_fingerprint_key")
+  @@index([workspaceId, community], map: "graph_communities_workspace_community_idx")
+  @@map("graph_communities")
+}

@@ -22,6 +22,7 @@ from app.services.clustering import (
     assign_communities,
     build_graph,
     co_occurrence_edges,
+    fingerprint,
     mention_edges,
 )
 
@@ -179,3 +180,40 @@ class TestAssignCommunities:
         graph = build_graph([topic_a, topic_b, shared], [], derived)
         communities = assign_communities(graph)
         assert communities[topic_a] == communities[topic_b] == communities[shared]
+
+
+class TestFingerprint:
+    """The identity that makes a cached summary safe.
+
+    Louvain renumbers on every run, so a summary stored against a cluster number
+    describes a different set of nodes after the next save — silently, and in the
+    one place a reader has no way to check it. The fingerprint is what stops that,
+    so these pin exactly the property it is relied on for.
+    """
+
+    def test_same_members_in_any_order_give_the_same_mark(self):
+        a, b, c = ids(3)
+        assert fingerprint([a, b, c]) == fingerprint([c, a, b])
+
+    def test_one_member_more_gives_a_different_mark(self):
+        # The whole point: membership changing must invalidate the prose. If this
+        # ever held equal, a summary would outlive the cluster it describes.
+        a, b, c = ids(3)
+        assert fingerprint([a, b]) != fingerprint([a, b, c])
+
+    def test_one_member_swapped_gives_a_different_mark(self):
+        a, b, c = ids(3)
+        assert fingerprint([a, b]) != fingerprint([a, c])
+
+    def test_renumbering_does_not_change_it(self):
+        # A cluster that keeps its members but is handed a new number keeps its
+        # mark — which is what lets the summary survive and the model call be
+        # skipped. The number is not an input at all.
+        a, b = ids(2)
+        members = {0: [a, b]}
+        renumbered = {3: [a, b]}
+        assert fingerprint(members[0]) == fingerprint(renumbered[3])
+
+    def test_an_empty_cluster_still_has_a_mark(self):
+        assert isinstance(fingerprint([]), str)
+        assert fingerprint([]) != fingerprint(ids(1))

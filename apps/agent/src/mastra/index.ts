@@ -9,7 +9,7 @@ import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
 import { PinoLogger } from "@mastra/loggers";
 
-import { compilerAgent, extractorAgent, linkerAgent } from "./agents";
+import { compilerAgent, extractorAgent, linkerAgent, summariserAgent } from "./agents";
 import { copilotAgent } from "./copilot";
 import { config } from "./config";
 import { compileItemWorkflow } from "./workflows/compile-item";
@@ -25,7 +25,7 @@ export const mastra = new Mastra({
   },
   // Registered so each stage can be exercised on its own in the Mastra
   // playground; the workflow drives them directly rather than through the registry.
-  agents: { extractorAgent, compilerAgent, linkerAgent, copilotAgent },
+  agents: { extractorAgent, compilerAgent, linkerAgent, copilotAgent, summariserAgent },
   // Without this Mastra falls back to an in-memory store and says so on every
   // boot: workflow run state would vanish on restart, so a compile interrupted
   // by a reload could never be inspected or resumed.

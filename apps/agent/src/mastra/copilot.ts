@@ -27,6 +27,23 @@ export interface RetrievedClaim {
   sourceUrl: string | null;
 }
 
+/**
+ * A named cluster of the workspace. Orientation, never evidence.
+ *
+ * The distinction is the whole reason this is a separate type from
+ * `RetrievedClaim`. A claim carries a verbatim quote from a source the reader
+ * saved, so an answer resting on it can be checked. A theme is prose the
+ * summariser wrote about a group of pages — true to the material, but one
+ * remove from it, and with nothing to check it against. It answers "what is in
+ * here", which claims cannot, and it must never be used to answer "is X true".
+ */
+export interface WorkspaceTheme {
+  title: string;
+  summary: string;
+  nodeCount: number;
+  pageCount: number;
+}
+
 export interface CopilotAnswer {
   answer: string;
   citations: { claimId: string; pageSlug: string; pageTitle: string }[];
@@ -65,7 +82,14 @@ Rules, in order of importance:
    preambles. Answer the question.
 
 5. Never speculate beyond the claims, even when the answer seems obvious. If you
-   find yourself reaching for general knowledge, that is the signal to refuse.`,
+   find yourself reaching for general knowledge, that is the signal to refuse.
+
+6. You may also be given THEMES: the areas this knowledge base covers, named by
+   grouping its pages. Themes are a map, not evidence. Use them to say what the
+   collection contains, to point at the nearest area when the claims fall short,
+   and to answer questions about the shape of the reader's own reading. Never
+   cite a theme, and never state a fact on a theme's authority — if the claims
+   do not support it, it is not supported, however plainly a theme implies it.`,
 });
 
 export interface HistoryTurn {
@@ -99,14 +123,36 @@ export function searchQuery(question: string, history: HistoryTurn[] = []): stri
   return previous ? `${previous.content.trim()} ${trimmed}` : trimmed;
 }
 
+/** The workspace's areas, as a compact map. Empty string when there are none. */
+function themeMap(themes: WorkspaceTheme[]): string {
+  if (themes.length === 0) return "";
+  return `THEMES (what this knowledge base covers — a map, not evidence; never cite these):\n${themes
+    .map((theme) => `- ${theme.title} (${theme.pageCount} pages): ${theme.summary}`)
+    .join("\n")}`;
+}
+
 /** Prompt for one turn: the question, the thread so far, and the evidence. */
 export function buildCopilotPrompt(
   question: string,
   claims: RetrievedClaim[],
   history: HistoryTurn[] = [],
+  themes: WorkspaceTheme[] = [],
 ): string {
   if (claims.length === 0) {
-    return `Question: ${question}\n\nCLAIMS: (none — the knowledge base has nothing on this topic)\n\nTell the reader their notes do not cover this yet.`;
+    // Retrieval found nothing, but the workspace is not necessarily empty — the
+    // question may be about its shape rather than about a fact in it. With the
+    // map in hand the model can answer that, or name the nearest area it does
+    // cover, instead of the flat "nothing here" this used to return.
+    return [
+      `Question: ${question}`,
+      "CLAIMS: (none matched this question)",
+      themeMap(themes),
+      themes.length > 0
+        ? "No claim matched. If the question is about what this knowledge base covers, answer it from the themes. Otherwise say plainly that the notes do not cover this, and name the closest areas that exist. Do not answer the question itself from a theme."
+        : "Tell the reader their notes do not cover this yet.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   const evidence = claims
@@ -133,8 +179,9 @@ export function buildCopilotPrompt(
   return [
     thread && `CONVERSATION SO FAR:\n${thread}`,
     `Question: ${question}`,
+    themeMap(themes),
     `CLAIMS:\n${evidence}`,
-    "Answer using only these claims, citing the labels. Earlier turns tell you what the question refers to; they are not evidence.",
+    "Answer using only these claims, citing the labels. Earlier turns tell you what the question refers to; they are not evidence, and neither are the themes.",
   ]
     .filter(Boolean)
     .join("\n\n");

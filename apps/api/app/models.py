@@ -563,3 +563,33 @@ class GraphNodeSource(Base):
         UUID(as_uuid=True), ForeignKey("raw_items.id", ondelete="CASCADE"), primary_key=True
     )
     first_seen_at: Mapped[dt.datetime] = _now()
+
+
+class GraphCommunity(Base):
+    """A cluster Louvain found, and what it is about.
+
+    Keyed by a fingerprint of its membership, not by the community number. The
+    numbers are reassigned on every detection run, so a summary stored against
+    one would quietly end up describing a different set of nodes. The fingerprint
+    is also what makes a summary reusable: unchanged membership means the prose
+    still holds and a model call is skipped.
+    """
+
+    __tablename__ = "graph_communities"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    workspace_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: sha256 of the sorted member node ids.
+    fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The number this cluster currently carries. Never an identity over time.
+    community: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    title: Mapped[str | None] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text)
+
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    created_at: Mapped[dt.datetime] = _now()
+    updated_at: Mapped[dt.datetime] = _now()
+    summarised_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))

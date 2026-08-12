@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { resolveCitations, type RetrievedClaim } from "./copilot";
+import { buildCopilotPrompt, resolveCitations, type RetrievedClaim } from "./copilot";
 
 function claim(n: number): RetrievedClaim {
   return {
@@ -77,5 +77,52 @@ describe("resolveCitations", () => {
     expect(resolveCitations("Shown [c3].", CLAIMS)).toEqual([
       { claimId: "id-3", pageSlug: "page-3", pageTitle: "Page 3" },
     ]);
+  });
+});
+
+/**
+ * Themes in the prompt.
+ *
+ * The risk they introduce is precise: theme prose reads like knowledge but has
+ * no source quote behind it, so a model that treats it as evidence produces an
+ * answer that looks grounded and is not — the one failure this product cannot
+ * absorb. These check that the prompt keeps the two apart.
+ */
+function theme(title: string) {
+  return { title, summary: `about ${title}`, nodeCount: 9, pageCount: 3 };
+}
+
+describe("buildCopilotPrompt with themes", () => {
+  it("marks the theme block as not evidence", () => {
+    const prompt = buildCopilotPrompt("what is quantisation?", CLAIMS, [], [theme("Inference")]);
+    expect(prompt).toContain("Inference");
+    expect(prompt).toMatch(/never cite these/i);
+  });
+
+  it("still tells the model to answer from the claims", () => {
+    const prompt = buildCopilotPrompt("what is quantisation?", CLAIMS, [], [theme("Inference")]);
+    expect(prompt).toContain("Answer using only these claims");
+    expect(prompt).toMatch(/neither are the themes/i);
+  });
+
+  it("omits the block entirely when nothing has been named yet", () => {
+    // A workspace with no summaries must produce the prompt it produced before
+    // themes existed — an empty heading would read as "there are no themes",
+    // which is a different claim from "none have been named".
+    const prompt = buildCopilotPrompt("what is quantisation?", CLAIMS, []);
+    expect(prompt).not.toMatch(/THEMES/);
+  });
+
+  it("offers the nearest area when retrieval found nothing", () => {
+    const prompt = buildCopilotPrompt("what is quantisation?", [], [], [theme("Inference")]);
+    expect(prompt).toContain("Inference");
+    expect(prompt).toMatch(/closest areas/i);
+    // The guard that matters: having a map must not license answering from it.
+    expect(prompt).toMatch(/Do not answer the question itself from a theme/i);
+  });
+
+  it("falls back to the flat refusal when there is no map either", () => {
+    const prompt = buildCopilotPrompt("what is quantisation?", [], []);
+    expect(prompt).toMatch(/do not cover this yet/i);
   });
 });

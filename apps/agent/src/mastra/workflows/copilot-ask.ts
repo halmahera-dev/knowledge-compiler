@@ -18,6 +18,7 @@ import {
   resolveCitations,
   searchQuery,
   type RetrievedClaim,
+  type WorkspaceTheme,
 } from "../copilot";
 
 const claimSchema = z.object({
@@ -66,8 +67,22 @@ const workflowInput = z.object({
   sessionId: z.string().nullable().default(null),
 });
 
+const themeSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  nodeCount: z.number(),
+  pageCount: z.number(),
+});
+
 const afterRetrieve = workflowInput.extend({
   claims: z.array(claimSchema),
+  /**
+   * The areas this workspace covers, independent of the question.
+   *
+   * Carried alongside the claims rather than merged into them: they answer
+   * different questions and only one of them is checkable. See WorkspaceTheme.
+   */
+  themes: z.array(themeSchema),
   semantic: z.boolean(),
   /**
    * Set when the API declined for a reason the reader can act on — no workspace
@@ -121,16 +136,24 @@ const retrieve = createStep({
       if (response.status >= 500) {
         throw new Error(`retrieval failed (${response.status}): ${body.slice(0, 200)}`);
       }
-      return { ...inputData, claims: [], semantic: false, blocked: explain(response.status) };
+      return {
+        ...inputData,
+        claims: [],
+        themes: [],
+        semantic: false,
+        blocked: explain(response.status),
+      };
     }
 
     const data = (await response.json()) as {
       claims: RetrievedClaim[];
+      themes?: WorkspaceTheme[];
       semantic: boolean;
     };
     return {
       ...inputData,
       claims: data.claims ?? [],
+      themes: data.themes ?? [],
       semantic: data.semantic ?? true,
       blocked: null,
     };
@@ -142,14 +165,23 @@ const answer = createStep({
   inputSchema: afterRetrieve,
   outputSchema: workflowOutput,
   execute: async ({ inputData }) => {
-    const { question, claims, history, blocked, sessionId } = inputData;
+    const { question, claims, themes, history, blocked, sessionId } = inputData;
 
-    // Short-circuit rather than asking the model to decline: it is cheaper, and
-    // a hardcoded refusal cannot be argued out of by injected content.
-    if (blocked || claims.length === 0) {
+    // Blocked is the reader's own state — no workspace, expired session — and
+    // nothing the model could improve on. Short-circuited rather than asked
+    // about: it is cheaper, and a hardcoded message cannot be argued out of by
+    // injected content.
+    if (blocked) {
+      return { answer: blocked, citations: [], claims: [], refused: true };
+    }
+
+    // No claims and no themes means the workspace genuinely holds nothing on
+    // this. With themes there is still something true to say — which area comes
+    // closest, or what the collection covers if that is what was asked — so the
+    // model gets the turn instead of this fixed sentence.
+    if (claims.length === 0 && themes.length === 0) {
       return {
         answer:
-          blocked ??
           "Nothing in this workspace covers that yet. Save something on the topic and it will be compiled in.",
         citations: [],
         claims: [],
@@ -158,7 +190,9 @@ const answer = createStep({
     }
 
     const startedAt = Date.now();
-    const result = await copilotAgent.generate(buildCopilotPrompt(question, claims, history));
+    const result = await copilotAgent.generate(
+      buildCopilotPrompt(question, claims, history, themes),
+    );
     const text = result.text ?? "";
 
     // A refusal costs nothing because it short-circuits above, so everything
@@ -177,9 +211,11 @@ const answer = createStep({
       answer: text,
       citations,
       claims,
-      // An answer citing nothing is either a refusal or an unsupported claim.
-      // Either way the UI should present it as not-grounded.
-      refused: citations.length === 0,
+      // "Not in your notes", which is what the UI renders this as. An answer
+      // resting on claims that cites none of them is exactly that. An answer
+      // built from themes has no claims to cite by construction, and it is
+      // describing the reader's own material — so the badge would be false.
+      refused: claims.length > 0 && citations.length === 0,
     };
   },
 });

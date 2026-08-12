@@ -59,7 +59,7 @@ come from the same place as the session.
 | **Capture** | Four ways in — paste, link, clipped article, PDF — beside a live feed of what each save did to the knowledge base. |
 | **Wiki** | Pages that wrote themselves. Every claim keeps the sentence it came from, and every compile is a revision you can roll back. |
 | **Ask** | Conversations with the copilot. Multi-turn, saved per workspace, and answered only from compiled pages — with the claims cited inline. |
-| **Graph** | Typed edges (`extends`, `contradicts`, `prerequisite_of`, `example_of`) plus the same graph as a keyboard-navigable index. |
+| **Graph** | Typed edges (`extends`, `contradicts`, `prerequisite_of`, `example_of`) plus the same graph as a keyboard-navigable index, and a named summary of each cluster in it. |
 | **Gaps** | Prerequisites noticed while compiling: what your reading assumes but never covers. |
 | **Visual help** | A guided tour in the navbar that highlights real controls in place, and skips steps whose target is not on the current page. |
 
@@ -377,6 +377,38 @@ clusters). It is biased toward precision: a false merge fuses two unrelated
 topics into one page and needs an explicit undo, whereas a missed merge just
 leaves two pages a later source can still join. Setting a single global 0.78
 would merge nothing at all on Cohere.
+
+---
+
+## Clusters and their names
+
+The graph clusters with **Louvain**, over both the agent's typed edges and edges
+derived from provenance. The derived half is not an enhancement — without it
+nothing can cluster at all. Edges are only ever written between nodes that a
+single compile established, so no edge spans two saves, and a real workspace of
+68 nodes came out as 28 disconnected components. Detection over that returns the
+components back, which is a fact a union-find already knows.
+
+Each cluster is then **named by the summariser**, and this is where the design
+earns its keep: a summary is stored against a **hash of the cluster's
+membership**, never against its number. Louvain renumbers on every run, so prose
+filed under "cluster 3" would quietly describe a different set of nodes after the
+next save — wrong in the one place a reader has no way to check it. Keyed by
+membership, an unchanged cluster keeps its paragraph and costs nothing.
+
+That is also the cost control. Naming runs at the end of a compile, and only for
+clusters that both changed and are large enough to be a theme rather than a
+coincidence (`MIN_SUMMARY_NODES`), capped at `MAX_COMMUNITIES_PER_RUN` per save.
+A save that shifts nothing makes no model call. Measured on the workspace above:
+seven clusters, ~570 tokens and under four seconds each.
+
+The names travel with every copilot answer as **themes** — a map of what the
+workspace covers, kept strictly apart from claims. A claim carries a verbatim
+source quote and can be checked; a theme is prose about a group of pages and
+cannot. So themes may say what is in the collection, or which area comes closest
+when retrieval finds nothing, and may never be cited or used to assert a fact.
+Before them, "what have I been reading about?" was unanswerable — retrieval
+returns claims, and no claim is about the shape of the collection.
 
 ---
 

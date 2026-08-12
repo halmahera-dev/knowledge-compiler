@@ -194,3 +194,46 @@ export async function reportUsage(payload: {
     // See the note above.
   }
 }
+
+/** One cluster of the graph, and the material to name it from. */
+export interface CommunityMaterial {
+  /** sha256 of the member node ids — the cluster's identity across renumbering. */
+  fingerprint: string;
+  community: number;
+  nodeCount: number;
+  pageCount: number;
+  labels: string[];
+  /** Compiled pages inside the cluster, as [title, summary]. */
+  pages: [string, string][];
+}
+
+/**
+ * Clusters whose membership changed and so have no current summary.
+ *
+ * Usually empty. A cluster keeps its prose for as long as its membership hash
+ * holds, so a compile that shifted nothing costs no model call — which is the
+ * whole reason summaries are keyed by membership rather than by cluster number.
+ */
+export async function pendingCommunities(
+  runId: string,
+  limit = 3,
+): Promise<CommunityMaterial[]> {
+  const data = await request<{ communities: CommunityMaterial[] }>(
+    "/internal/communities/pending",
+    { method: "POST", body: JSON.stringify({ runId, limit }) },
+  );
+  return data.communities ?? [];
+}
+
+/** Attach prose to a cluster. Addressed by membership, never by cluster number. */
+export async function storeCommunitySummary(payload: {
+  runId: string;
+  fingerprint: string;
+  title: string;
+  summary: string;
+}): Promise<void> {
+  await request<void>("/internal/communities/summary", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

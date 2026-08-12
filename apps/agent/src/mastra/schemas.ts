@@ -138,3 +138,22 @@ export const linkageSchema = z.object({
     .describe("Prerequisites or follow-ups the reader has not covered. Omit if nothing is missing."),
 });
 export type Linkage = z.infer<typeof linkageSchema>;
+
+// ─── after persist: naming a cluster ─────────────────────────────────────────
+
+export const communitySummarySchema = z.object({
+  title: z
+    .string()
+    .max(60)
+    .describe(
+      "A short noun phrase naming what this cluster of the reader's notes is about, " +
+        "the way a section of a bookshelf would be labelled. No 'Overview of', no colons.",
+    ),
+  summary: z
+    .string()
+    .max(900)
+    .describe(
+      "Two to four sentences on what the reader has actually covered in this area and " +
+        "how the pieces relate. Describe the material, never the reader.",
+    ),
+});

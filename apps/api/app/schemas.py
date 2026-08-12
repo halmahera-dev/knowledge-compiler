@@ -220,6 +220,32 @@ class GraphOut(Wire):
     derived_edges: list[DerivedEdgeOut] = Field(default_factory=list)
 
 
+class CommunityOut(Wire):
+    """A cluster of the graph, named.
+
+    `community` is the colour index the nodes currently carry, so it lines up
+    with `GraphNodeOut.community` in the same response. It is not an identity:
+    detection renumbers, and the number means nothing between runs. What is
+    durable is the membership, which is why the summary is stored against a hash
+    of it and never against this.
+    """
+
+    community: int
+    #: Null until the agent has named it. A cluster too small to be worth a model
+    #: call stays null forever, and that is the intended end state.
+    title: str | None = None
+    summary: str | None = None
+    node_count: int
+    page_count: int
+    #: The heaviest concepts in it, so an unnamed cluster still says something.
+    labels: list[str] = Field(default_factory=list)
+    summarised_at: dt.datetime | None = None
+
+
+class CommunitiesOut(Wire):
+    communities: list[CommunityOut] = Field(default_factory=list)
+
+
 # ─── runs / feed ─────────────────────────────────────────────────────────────
 
 
@@ -296,6 +322,42 @@ class MatchRequest(Wire):
     run_id: uuid.UUID
     text: str
     top_k: int = 5
+
+
+class PendingCommunitiesRequest(Wire):
+    #: As everywhere under /internal: the workspace comes from the run, never
+    #: from the body, so the agent cannot read another tenant's clusters.
+    run_id: uuid.UUID
+    #: How many to name in this compile. Capped by the API regardless of what is
+    #: asked for — an uncapped value is an unbounded number of model calls
+    #: hanging off a single save.
+    limit: int = 3
+
+
+class CommunityMaterialOut(Wire):
+    """What the agent is given to write a cluster's summary from."""
+
+    fingerprint: str
+    community: int
+    node_count: int
+    page_count: int
+    labels: list[str] = Field(default_factory=list)
+    #: Compiled pages in this cluster, as (title, summary). The better evidence:
+    #: labels say what the cluster is about, pages say what it established.
+    pages: list[tuple[str, str]] = Field(default_factory=list)
+
+
+class PendingCommunitiesResponse(Wire):
+    communities: list[CommunityMaterialOut] = Field(default_factory=list)
+
+
+class CommunitySummaryRequest(Wire):
+    run_id: uuid.UUID
+    #: Addressed by membership, not by number. A summary filed under a number
+    #: would describe a different cluster after the next detection run.
+    fingerprint: str
+    title: str = Field(min_length=1, max_length=120)
+    summary: str = Field(min_length=1, max_length=1200)
 
 
 class PageCandidate(Wire):
@@ -400,12 +462,30 @@ class RetrievedClaimOut(Wire):
     source_url: str | None = None
 
 
+class ThemeOut(Wire):
+    """A named cluster of the workspace, as orientation for an answer.
+
+    Not evidence. A claim carries a verbatim source quote and can be checked; a
+    theme is prose the agent wrote about a group of pages. It tells the copilot
+    what areas this workspace covers — which is what makes "what have I been
+    reading about?" answerable at all — and must never be cited as a fact.
+    """
+
+    title: str
+    summary: str
+    node_count: int
+    page_count: int
+
+
 class CopilotSearchResponse(Wire):
     query: str
     #: False when the embedding provider was unreachable and only lexical search
     #: ran — the answer may be thinner than usual, and the UI can say so.
     semantic: bool = True
     claims: list[RetrievedClaimOut] = Field(default_factory=list)
+    #: The workspace's named clusters, largest first. Independent of the query:
+    #: this is the map of what is here, not a retrieval result.
+    themes: list[ThemeOut] = Field(default_factory=list)
 
 
 # ─── copilot conversations ───────────────────────────────────────────────────

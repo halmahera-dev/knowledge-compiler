@@ -24,6 +24,7 @@ from .models import (
     ChatSession,
     ClaimSource,
     CompileRun,
+    GraphCommunity,
     GraphEdge,
     GraphNode,
     GraphNodeSource,
@@ -49,6 +50,7 @@ WORKSPACE_OWNED = (
     Wiki,
     ChatSession,
     AiUsageEvent,
+    GraphCommunity,
 )
 
 #: Models reachable only through a parent. Listing them explicitly means a new

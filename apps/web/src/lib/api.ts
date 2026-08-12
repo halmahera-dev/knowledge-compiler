@@ -160,6 +160,25 @@ export interface GraphData {
   derivedEdges: DerivedEdge[];
 }
 
+/**
+ * A cluster of the graph, named.
+ *
+ * `community` matches `GraphNode.community` in the same load, so the colour on
+ * the canvas and the entry in the list are the same cluster. It is a colour
+ * index and nothing more — detection renumbers on every save, so it is never
+ * stored against anything or used to link between requests.
+ */
+export interface Community {
+  community: number;
+  /** Null until the agent has named it, and permanently null when too small. */
+  title: string | null;
+  summary: string | null;
+  nodeCount: number;
+  pageCount: number;
+  labels: string[];
+  summarisedAt: string | null;
+}
+
 export interface Gap {
   id: string;
   question: string;
@@ -410,6 +429,8 @@ export const api = {
       body: JSON.stringify({ revisionNo }),
     }),
   getGraph: () => request<GraphData>("/api/v1/graph"),
+  getCommunities: () =>
+    request<{ communities: Community[] }>("/api/v1/graph/communities"),
   listRuns: () => request<Run[]>("/api/v1/runs"),
   /** Re-queues a run that failed or was never picked up. */
   retryRun: (runId: string) =>

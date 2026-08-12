@@ -26,6 +26,7 @@ down.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
@@ -33,10 +34,10 @@ from dataclasses import dataclass
 import structlog
 from networkx import Graph
 from networkx.algorithms.community import louvain_communities
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import GraphEdge, GraphNode, GraphNodeSource
+from ..models import GraphCommunity, GraphEdge, GraphNode, GraphNodeSource
 from ..scoping import Scope
 
 log = structlog.get_logger(__name__)
@@ -215,6 +216,71 @@ def assign_communities(graph: Graph) -> dict[uuid.UUID, int]:
     return {node: index for index, group in enumerate(ordered) for node in group}
 
 
+def fingerprint(node_ids: list[uuid.UUID]) -> str:
+    """A stable name for a cluster, derived from who is in it.
+
+    Louvain renumbers on every run — cluster 3 today is a different set of nodes
+    tomorrow — so anything durable hung off the number describes the wrong thing
+    after the next save. Hashing the sorted membership gives an identity that
+    survives renumbering, which is what lets a summary be reused instead of
+    regenerated: same members, same paragraph, no model call.
+    """
+    joined = ",".join(sorted(str(node_id) for node_id in node_ids))
+    return hashlib.sha256(joined.encode()).hexdigest()
+
+
+async def _record_communities(
+    db: AsyncSession,
+    scope: Scope,
+    members: dict[int, list[uuid.UUID]],
+    pages_by_node: dict[uuid.UUID, bool],
+) -> None:
+    """Store each cluster's membership, keeping any summary still valid.
+
+    A row survives across runs when its fingerprint does, carrying its prose with
+    it. Rows whose membership no longer exists are removed rather than left to
+    accumulate — a stale summary of a cluster that has since split is worse than
+    none, because it reads as current.
+    """
+    seen: set[str] = set()
+
+    for community, node_ids in members.items():
+        mark = fingerprint(node_ids)
+        seen.add(mark)
+        page_count = sum(1 for node_id in node_ids if pages_by_node.get(node_id))
+
+        existing = await db.scalar(
+            select(GraphCommunity).where(
+                GraphCommunity.workspace_id == scope.workspace_id,
+                GraphCommunity.fingerprint == mark,
+            )
+        )
+        if existing is not None:
+            # Membership unchanged, so the summary still holds. Only the number
+            # it currently carries is refreshed.
+            existing.community = community
+            existing.node_count = len(node_ids)
+            existing.page_count = page_count
+            continue
+
+        db.add(
+            GraphCommunity(
+                workspace_id=scope.workspace_id,
+                fingerprint=mark,
+                community=community,
+                node_count=len(node_ids),
+                page_count=page_count,
+            )
+        )
+
+    await db.flush()
+    stale = select(GraphCommunity.id).where(
+        GraphCommunity.workspace_id == scope.workspace_id,
+        GraphCommunity.fingerprint.notin_(seen) if seen else True,
+    )
+    await db.execute(delete(GraphCommunity).where(GraphCommunity.id.in_(stale)))
+
+
 async def detect_communities(db: AsyncSession, scope: Scope) -> dict[str, int]:
     """Recompute this workspace's clusters and store them on the nodes.
 
@@ -257,6 +323,18 @@ async def detect_communities(db: AsyncSession, scope: Scope) -> dict[str, int]:
         await db.execute(
             update(GraphNode).where(GraphNode.id.in_(members)).values(community=community)
         )
+
+    pages_by_node = {
+        node_id: page_id is not None
+        for node_id, page_id in (
+            await db.execute(
+                select(GraphNode.id, GraphNode.wiki_page_id).where(
+                    GraphNode.workspace_id == scope.workspace_id
+                )
+            )
+        ).all()
+    }
+    await _record_communities(db, scope, by_community, pages_by_node)
 
     summary = {
         "nodes": len(nodes),

@@ -9,21 +9,29 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
 
-import { compilerAgent, extractorAgent, linkerAgent } from "../agents";
+import { compilerAgent, extractorAgent, linkerAgent, summariserAgent } from "../agents";
 import {
   applyCompile,
   getPageClaims,
   getRawItem,
+  pendingCommunities,
   reportFailure,
   reportStep,
   reportUsage,
   searchSimilarPages,
+  storeCommunitySummary,
+  type CommunityMaterial,
   type ExistingClaim,
   type ModelUsage,
   type PageCandidate,
 } from "../api";
 import { config } from "../config";
-import { compilationSchema, extractionSchema, linkageSchema } from "../schemas";
+import {
+  communitySummarySchema,
+  compilationSchema,
+  extractionSchema,
+  linkageSchema,
+} from "../schemas";
 
 const workflowInput = z.object({
   runId: z.string(),
@@ -427,6 +435,120 @@ const persist = createStep({
   },
 });
 
+// ─── 6. name clusters ────────────────────────────────────────────────────────
+
+/**
+ * Give the reshaped clusters their names.
+ *
+ * Runs after persist because it depends on it: applying the compile is what
+ * re-runs community detection, so until that has happened there is nothing new
+ * to name.
+ *
+ * Nothing here may fail the run. The page is already written and the graph is
+ * already correct by the time this starts — a cluster left unnamed is a missing
+ * label on a working knowledge base, and reporting that as a failed compile
+ * would be a lie about what happened to the reader's document.
+ */
+const nameClusters = createStep({
+  id: "name-clusters",
+  inputSchema: workflowOutput,
+  outputSchema: workflowOutput,
+  execute: async ({ inputData }) => {
+    const { runId } = inputData;
+
+    try {
+      const pending = await pendingCommunities(runId);
+      if (pending.length === 0) return inputData;
+
+      let named = 0;
+      for (const cluster of pending) {
+        const summary = await summariseCluster(runId, cluster);
+        if (!summary) continue;
+
+        await storeCommunitySummary({
+          runId,
+          fingerprint: cluster.fingerprint,
+          title: summary.title,
+          summary: summary.summary,
+        });
+        named += 1;
+      }
+
+      if (named > 0) {
+        await reportStep(
+          runId,
+          "name-clusters",
+          named === 1 ? "Named a cluster of the graph" : `Named ${named} clusters of the graph`,
+        );
+      }
+    } catch (error) {
+      // Logged, not raised. See the note above.
+      console.warn(
+        `[name-clusters] skipped for run ${runId}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+
+    return inputData;
+  },
+});
+
+/**
+ * One naming call, or null.
+ *
+ * Deliberately not `generateStructured`: that helper reports a run as FAILED
+ * when the model will not produce the schema, which is right for a step the
+ * compile depends on and wrong for one that runs after it succeeded. Here a
+ * refusal costs a label, so it returns null and the cluster is simply picked up
+ * again on the next save.
+ */
+async function summariseCluster(
+  runId: string,
+  cluster: CommunityMaterial,
+): Promise<{ title: string; summary: string } | null> {
+  const pages = cluster.pages
+    .map(([title, summary]) => `- ${title}${summary ? `: ${summary}` : ""}`)
+    .join("\n");
+
+  const prompt = [
+    `This cluster holds ${cluster.nodeCount} concepts across ${cluster.pageCount} compiled pages.`,
+    "",
+    `CONCEPTS: ${cluster.labels.join(", ")}`,
+    pages && `\nPAGES:\n${pages}`,
+    "",
+    "Name this cluster and say what it covers.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const startedAt = Date.now();
+  try {
+    const response = await summariserAgent.generate(prompt, {
+      structuredOutput: { schema: communitySummarySchema },
+    });
+
+    await reportUsage({
+      operation: "name-clusters",
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+      latencyMs: Date.now() - startedAt,
+      runId,
+    });
+
+    const parsed = communitySummarySchema.safeParse(response.object);
+    return parsed.success ? parsed.data : null;
+  } catch (error) {
+    await reportUsage({
+      operation: "name-clusters",
+      latencyMs: Date.now() - startedAt,
+      status: "error",
+      error: error instanceof Error ? error.message : String(error),
+      runId,
+    });
+    return null;
+  }
+}
+
 export const compileItemWorkflow = createWorkflow({
   id: "compile-item",
   description: "Compile one captured item into the wiki and graph.",
@@ -438,4 +560,5 @@ export const compileItemWorkflow = createWorkflow({
   .then(compile)
   .then(link)
   .then(persist)
+  .then(nameClusters)
   .commit();

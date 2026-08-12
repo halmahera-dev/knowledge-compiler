@@ -10,21 +10,30 @@
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { api, type EdgeRelation, type GraphData } from "~/lib/api";
+import { api, type Community, type EdgeRelation, type GraphData } from "~/lib/api";
 import { titleHead } from "~/lib/head";
 import { requireSession } from "~/lib/guards";
 import { buildIndex } from "~/lib/graph-index";
+
+const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], derivedEdges: [] };
 
 export const Route = createFileRoute("/graph")({
   beforeLoad: requireSession,
   head: titleHead("Graph"),
   component: GraphPage,
   loader: async () => {
-    try {
-      return { graph: await api.getGraph() };
-    } catch {
-      return { graph: { nodes: [], edges: [], derivedEdges: [] } as GraphData };
-    }
+    // Two requests, settled independently. The names are the smaller and less
+    // important of the two, and a page that renders no graph because its labels
+    // could not be fetched would be the wrong trade.
+    const [graph, communities] = await Promise.allSettled([
+      api.getGraph(),
+      api.getCommunities(),
+    ]);
+
+    return {
+      graph: graph.status === "fulfilled" ? graph.value : EMPTY_GRAPH,
+      communities: communities.status === "fulfilled" ? communities.value.communities : [],
+    };
   },
 });
 
@@ -76,8 +85,79 @@ function cssValue(token: string, fallback: string): string {
   );
 }
 
+/**
+ * The clusters, as a reader reads them.
+ *
+ * Named ones first, then the rest by size. An unnamed cluster is still shown:
+ * it exists on the canvas, and a list that quietly omitted it would disagree
+ * with the picture directly above it about how many clusters there are.
+ */
+function Themes({ communities }: { communities: Community[] }) {
+  if (communities.length === 0) return null;
+
+  const ordered = [...communities].sort((a, b) => {
+    if (Boolean(a.title) !== Boolean(b.title)) return a.title ? -1 : 1;
+    return b.nodeCount - a.nodeCount;
+  });
+
+  return (
+    <section aria-labelledby="themes-heading" className="mt-12 border-t border-rule pt-8">
+      <h2 id="themes-heading" className="eyebrow">
+        What these clusters are about
+      </h2>
+      <p className="mt-2 max-w-[60ch] text-small leading-relaxed text-ink-muted">
+        Written from the pages in each cluster, and rewritten when its membership
+        changes.
+      </p>
+
+      <ul className="mt-6 space-y-7">
+        {ordered.map((theme) => {
+          const colour = communityColour(theme.community);
+          return (
+            <li key={theme.community} className="flex gap-4">
+              <span
+                aria-hidden="true"
+                className="mt-1.5 w-1 shrink-0 rounded-full"
+                style={{ background: colour ?? "var(--color-rule-strong)" }}
+              />
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-baseline gap-x-3">
+                  <span className="font-read text-lead font-semibold tracking-[-0.01em]">
+                    {theme.title ?? "Not named yet"}
+                  </span>
+                  <span className="font-mono text-micro tabular-nums text-ink-faint">
+                    {theme.nodeCount} concept{theme.nodeCount === 1 ? "" : "s"}
+                    {theme.pageCount > 0 &&
+                      ` · ${theme.pageCount} page${theme.pageCount === 1 ? "" : "s"}`}
+                  </span>
+                </p>
+
+                {theme.summary ? (
+                  <p className="mt-1.5 max-w-[68ch] text-body leading-relaxed text-ink-muted">
+                    {theme.summary}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-small text-ink-faint">
+                    Named after the next save that touches it.
+                  </p>
+                )}
+
+                {theme.labels.length > 0 && (
+                  <p className="mt-2 font-mono text-micro text-ink-faint">
+                    {theme.labels.join(" · ")}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function GraphPage() {
-  const { graph } = Route.useLoaderData();
+  const { graph, communities } = Route.useLoaderData();
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -258,6 +338,8 @@ function GraphPage() {
       <p className="mt-3 text-micro text-ink-faint">
         Node size tracks how much of your reading touches a topic.
       </p>
+
+      <Themes communities={communities} />
 
       {indexed.length > 0 && (
         <section aria-labelledby="topics-heading" className="mt-12 border-t border-rule pt-8">
