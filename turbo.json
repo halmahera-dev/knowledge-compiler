@@ -1,40 +1,49 @@
 {
-  "$schema": "https://turbo.build/schema.json",
-  "ui": "stream",
-  "globalEnv": [
-    "DATABASE_URL",
-    "COCKROACH_URL",
-    "REDIS_URI",
-    "OPENAI_API_KEY",
-    "OPENAI_BASE_URL",
-    "BEDROCK_MODEL",
-    "BEDROCK_PROJECT",
-    "VITE_API_URL",
-    "MASTRA_URL",
-    "INTERNAL_API_URL",
-    "INTERNAL_API_TOKEN"
-  ],
-  "tasks": {
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**",
-        ".output/**",
-        ".mastra/**"
-      ]
-    },
-    "lint": {},
-    "typecheck": {
-      "dependsOn": [
-        "^build"
-      ]
-    },
-    "test": {}
-  }
+	"$schema": "https://turbo.build/schema.json",
+	"ui": "tui",
+	"tasks": {
+		"build": {
+			"dependsOn": [
+				"^build"
+			],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				".env*"
+			],
+			"outputs": [
+				"dist/**",
+				".next/**",
+				"!.next/cache/**",
+				"!.next/dev/**"
+			]
+		},
+		"lint": {
+			"dependsOn": [
+				"^lint"
+			]
+		},
+		"check-types": {
+			"dependsOn": [
+				"^check-types"
+			]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"db:push": {
+			"cache": false
+		},
+		"db:generate": {
+			"cache": false
+		},
+		"db:migrate": {
+			"cache": false,
+			"persistent": true
+		},
+		"db:studio": {
+			"cache": false,
+			"persistent": true
+		}
+	}
 }

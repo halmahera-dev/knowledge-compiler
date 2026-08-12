@@ -97,7 +97,7 @@ class JwtVerifier:
             token,
             signing_key.key,
             algorithms=["EdDSA"],
-            audience=self._settings.auth_audience,
+            audience=self._settings.resolved_auth_audience,
             issuer=self._settings.auth_base_url,
             options={"require": ["exp", "sub"]},
         )

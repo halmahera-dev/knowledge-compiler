@@ -8,19 +8,20 @@
  */
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
-
-import { compilerAgent, extractorAgent, linkerAgent } from "../agents";
+import { compilerAgent } from "../agents/compiler";
+import { extractorAgent } from "../agents/extractor";
+import { linkerAgent } from "../agents/linker";
 import {
   applyCompile,
+  type ExistingClaim,
   getPageClaims,
   getRawItem,
+  type ModelUsage,
+  type PageCandidate,
   reportFailure,
   reportStep,
   reportUsage,
   searchSimilarPages,
-  type ExistingClaim,
-  type ModelUsage,
-  type PageCandidate,
 } from "../api";
 import { config } from "../config";
 import { compilationSchema, extractionSchema, linkageSchema } from "../schemas";
@@ -188,7 +189,11 @@ const match = createStep({
   outputSchema: afterMatch,
   execute: async ({ inputData }) => {
     const { runId, extraction } = inputData;
-    await reportStep(runId, "match", "Looking for an existing page on this topic");
+    await reportStep(
+      runId,
+      "match",
+      "Looking for an existing page on this topic",
+    );
 
     const { candidates, threshold } = await searchSimilarPages(
       runId,
@@ -198,7 +203,9 @@ const match = createStep({
     // Only the closest page is a merge candidate, and only above the threshold.
     // Everything else is context for the compiler's decision.
     const best: PageCandidate | undefined =
-      candidates[0] && candidates[0].similarity >= threshold ? candidates[0] : undefined;
+      candidates[0] && candidates[0].similarity >= threshold
+        ? candidates[0]
+        : undefined;
 
     let existingClaims: ExistingClaim[] = [];
     let targetBody = "";
@@ -218,7 +225,11 @@ const match = createStep({
         `Matched "${best.title}" at ${(best.similarity * 100).toFixed(0)}% similarity`,
       );
     } else {
-      await reportStep(runId, "match", "No existing page is close enough — this is a new topic");
+      await reportStep(
+        runId,
+        "match",
+        "No existing page is close enough — this is a new topic",
+      );
     }
 
     return {
@@ -239,9 +250,20 @@ const compile = createStep({
   inputSchema: afterMatch,
   outputSchema: afterCompile,
   execute: async ({ inputData }) => {
-    const { runId, extraction, candidates, threshold, existingClaims, targetPageId, targetBody } =
-      inputData;
-    await reportStep(runId, "compile", "Deciding how this fits the knowledge base");
+    const {
+      runId,
+      extraction,
+      candidates,
+      threshold,
+      existingClaims,
+      targetPageId,
+      targetBody,
+    } = inputData;
+    await reportStep(
+      runId,
+      "compile",
+      "Deciding how this fits the knowledge base",
+    );
 
     const candidateList =
       candidates.length > 0
@@ -293,7 +315,10 @@ Produce the complete compiled page.`,
     const resolved = {
       ...compilation,
       targetPageId: compilation.action === "create" ? null : targetPageId,
-      action: compilation.action !== "create" && !targetPageId ? "create" : compilation.action,
+      action:
+        compilation.action !== "create" && !targetPageId
+          ? "create"
+          : compilation.action,
     };
 
     await reportStep(

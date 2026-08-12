@@ -1,13 +1,17 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 .output/
+.next/
 .nitro/
 .tanstack/
 .mastra/
-mastra.db
-mastra.db-*
 .turbo/
 .vinxi/
+mastra.db
+mastra.db-*
 
 # Python
 __pycache__/
@@ -18,11 +22,7 @@ __pycache__/
 .mypy_cache/
 *.egg-info/
 
-# Env — .env holds real credentials, never commit it.
-# Everything .env* is ignored and .env.example opted back in, rather than listing
-# variants: `pnpm ccloud use` writes .env.local-backup containing a Cloud
-# connection string with its password, and a rule naming only the files that
-# existed when it was written would not have covered it.
+# Environment variables
 .env
 .env.*
 !.env.example
@@ -31,17 +31,16 @@ __pycache__/
 .cache/
 apps/api/.model-cache/
 
-# Editors / OS
+# IDEs and editors
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
 
-# npm was used once at the start; this repo is pnpm (see packageManager in
-# package.json). A stray npm lockfile makes CI and hosting providers pick the
-# wrong package manager, and then resolve different versions than anyone tested.
+# Package manager lockfiles
 package-lock.json
 yarn.lock
 
+# Misc
 *.pem

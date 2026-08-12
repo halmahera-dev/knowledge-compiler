@@ -1,0 +1,24 @@
+{
+  "name": "@kc/auth",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "type": "module",
+  "scripts": {},
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@kc/config": "workspace:*"
+  },
+  "dependencies": {
+    "dotenv": "catalog:",
+    "zod": "catalog:",
+    "@kc/env": "workspace:*",
+    "@kc/db": "workspace:*",
+    "better-auth": "catalog:"
+  }
+}

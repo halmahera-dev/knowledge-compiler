@@ -114,8 +114,11 @@ class Settings(BaseSettings):
     # ── auth ─────────────────────────────────────────────────────────────────
     # Where Better Auth runs. Its JWKS lives at {auth_base_url}/api/auth/jwks and
     # is also the `iss` every token must carry, so this doubles as the issuer.
-    auth_base_url: str = "http://localhost:3000"
-    auth_audience: str = "knowledge-compiler-api"
+    auth_base_url: str = "http://localhost:5173"
+    # Better Auth's jwt plugin defaults `aud` to its own baseURL unless an
+    # explicit audience is configured — nothing configures one, so this must
+    # default the same way or every token fails InvalidAudienceError.
+    auth_audience: str = ""
     # Signing keys change only on rotation; a verification failure refetches
     # immediately, so this is a ceiling rather than a freshness requirement.
     jwks_cache_seconds: int = 3600
@@ -186,6 +189,12 @@ class Settings(BaseSettings):
     @property
     def sqlalchemy_url(self) -> str:
         return to_sqlalchemy_url(self.cockroach_url)
+
+    @property
+    def resolved_auth_audience(self) -> str:
+        """Prefers an explicit AUTH_AUDIENCE, otherwise matches Better Auth's
+        own default of signing tokens with `aud` set to its baseURL."""
+        return self.auth_audience or self.auth_base_url
 
     @property
     def resolved_region(self) -> str:

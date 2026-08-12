@@ -1,0 +1,293 @@
+@import "@kc/ui/globals.css";
+
+.page-header-material {
+	background: color-mix(in oklch, var(--background) 72%, transparent);
+	box-shadow: 0 1px 0 color-mix(in oklch, var(--foreground) 5%, transparent);
+	backdrop-filter: var(--tw-backdrop-blur) saturate(165%);
+	-webkit-backdrop-filter: var(--tw-backdrop-blur) saturate(165%);
+}
+
+.page-header-material::after {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	left: 0;
+	height: 0.75rem;
+	pointer-events: none;
+	content: "";
+	background: linear-gradient(
+		to bottom,
+		color-mix(in oklch, var(--foreground) 7%, transparent),
+		transparent
+	);
+	opacity: 0.22;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.page-header-material {
+		background: var(--background);
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+}
+
+.notes-canvas {
+	background:
+		radial-gradient(
+			circle at 75% -10%,
+			color-mix(in oklch, var(--primary) 7%, transparent),
+			transparent 36rem
+		),
+		color-mix(in oklch, var(--muted) 68%, var(--background));
+	color: var(--foreground);
+}
+
+.notes-paper {
+	background: color-mix(in oklch, var(--background) 96%, var(--muted));
+}
+
+.notes-reader {
+	transform-origin: 50% 0;
+	animation: notes-reader-enter 360ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.notes-reader-header {
+	background: var(--background);
+	box-shadow: 0 1px 0 color-mix(in oklch, var(--foreground) 10%, transparent);
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+}
+
+.notes-reader-header::after {
+	display: none;
+}
+
+@keyframes notes-reader-enter {
+	from {
+		transform: translateY(0.75rem) scale(0.99);
+		opacity: 0;
+	}
+
+	to {
+		transform: translateY(0) scale(1);
+		opacity: 1;
+	}
+}
+
+.notes-side {
+	background: color-mix(in oklch, var(--muted) 74%, transparent);
+}
+
+.notes-inspector,
+.notes-list-toolbar {
+	background: color-mix(in oklch, var(--background) 72%, transparent);
+	backdrop-filter: blur(22px) saturate(150%);
+	-webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.notes-list-toolbar {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.625rem 1rem;
+	box-shadow:
+		0 1px 0 color-mix(in oklch, var(--foreground) 7%, transparent),
+		0 0.6rem 1rem -1rem color-mix(in oklch, var(--foreground) 25%, transparent);
+}
+
+.notes-search {
+	display: flex;
+	width: min(100%, 25rem);
+	height: 2.125rem;
+	align-items: center;
+	gap: 0.5rem;
+	padding-inline: 0.75rem 0.375rem;
+	border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+	border-radius: 999px;
+	background: color-mix(in oklch, var(--background) 58%, transparent);
+	box-shadow: inset 0 1px 1px
+		color-mix(in oklch, var(--foreground) 3%, transparent);
+	transition:
+		background-color 160ms ease,
+		border-color 160ms ease,
+		box-shadow 160ms ease;
+}
+
+.notes-search:focus-within {
+	border-color: color-mix(in oklch, var(--foreground) 22%, transparent);
+	background: color-mix(in oklch, var(--background) 88%, transparent);
+	box-shadow: 0 0 0 3px color-mix(in oklch, var(--foreground) 5%, transparent);
+}
+
+.notes-search input {
+	min-width: 0;
+	flex: 1;
+	background: transparent;
+	font-size: 0.8125rem;
+	outline: none;
+}
+
+.notes-row {
+	padding: 0.8rem 0.875rem;
+	border-radius: 0.75rem;
+	touch-action: manipulation;
+}
+
+.notes-row:hover {
+	background: color-mix(in oklch, var(--foreground) 5%, transparent);
+}
+
+.notes-press {
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+	transition:
+		transform 100ms ease-out,
+		background-color 160ms ease-out,
+		color 160ms ease-out;
+}
+
+.notes-press:active {
+	transform: scale(0.975);
+}
+
+.notes-eyebrow {
+	font-size: 0.625rem;
+	font-weight: 650;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	color: var(--muted-foreground);
+}
+
+.notes-category {
+	display: inline-flex;
+	align-items: center;
+	border-radius: 999px;
+	padding: 0.3rem 0.6rem;
+	background: color-mix(in oklch, var(--foreground) 7%, transparent);
+	font-size: 0.625rem;
+	font-weight: 650;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.notes-category-strong {
+	background: var(--foreground);
+	color: var(--background);
+}
+
+.notes-display {
+	font-weight: 680;
+	line-height: 1.03;
+	letter-spacing: -0.045em;
+	font-optical-sizing: auto;
+	text-wrap: balance;
+}
+
+.notes-open {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	border-radius: 999px;
+	padding: 0.65rem 0.9rem;
+	background: var(--foreground);
+	color: var(--background);
+	font-size: 0.8125rem;
+	font-weight: 650;
+}
+
+.notes-claim,
+.notes-evidence-card {
+	width: 100%;
+	border: 1px solid color-mix(in oklch, var(--foreground) 9%, transparent);
+	border-radius: 0.875rem;
+	background: color-mix(in oklch, var(--background) 82%, transparent);
+	box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 4%, transparent);
+}
+
+.notes-claim {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	padding: 1rem;
+	text-align: left;
+}
+
+.notes-claim:hover,
+.notes-evidence-card:hover {
+	border-color: color-mix(in oklch, var(--foreground) 16%, transparent);
+}
+
+.notes-evidence-card {
+	padding: 0.9rem;
+}
+
+.notes-segmented {
+	border-radius: 0.7rem;
+	padding: 0.2rem;
+	background: color-mix(in oklch, var(--foreground) 7%, transparent);
+}
+
+@media (max-width: 40rem) {
+	.notes-search {
+		width: 2.125rem;
+		padding-inline: 0.5rem;
+		transition: background-color 160ms ease;
+	}
+
+	.notes-search:focus-within {
+		width: min(100%, 17rem);
+		padding-inline: 0.75rem 0.375rem;
+	}
+
+	.notes-search input::placeholder {
+		color: transparent;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.notes-reader {
+		animation: notes-reader-fade 160ms ease-out both;
+	}
+
+	.notes-press {
+		transition:
+			background-color 160ms ease-out,
+			color 160ms ease-out;
+	}
+
+	.notes-press:active {
+		transform: none;
+	}
+}
+
+@keyframes notes-reader-fade {
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.notes-inspector,
+	.notes-list-toolbar,
+	.notes-search {
+		background: var(--background);
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+}
+
+@media (prefers-contrast: more) {
+	.notes-inspector,
+	.notes-list-toolbar,
+	.notes-search,
+	.notes-claim,
+	.notes-evidence-card {
+		border-color: var(--foreground);
+		background: var(--background);
+	}
+}
