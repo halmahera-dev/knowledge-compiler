@@ -1,0 +1,5 @@
+{
+  "name": "@kc/extension",
+  "private": true,
+  "type": "module"
+}

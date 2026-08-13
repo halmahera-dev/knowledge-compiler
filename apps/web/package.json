@@ -24,7 +24,7 @@
     "react-force-graph-2d": "^1.27.0"
   },
   "devDependencies": {
-    "@kc/tsconfig": "workspace:*",
+    "@kc/config": "workspace:*",
     "@tailwindcss/vite": "^4.0.0",
     "@types/pg": "^8.20.3",
     "@types/react": "^19.0.0",

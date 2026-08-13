@@ -1,0 +1,48 @@
+# Reproduces the local dependencies on a fresh machine.
+#
+# If you already have containers named `cockroachdb` and `redis` (this repo was
+# developed against exactly that setup), you do NOT need this file — run
+# `pnpm db:up`, which starts the existing containers instead of creating new
+# ones. Compose is the fallback for a machine that has neither.
+#
+#   docker compose up -d
+#
+# Ports, credentials, and the cockroach_data volume below intentionally mirror
+# the pre-existing containers so both paths produce an identical environment.
+
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:latest
+    container_name: cockroachdb
+    command: start-single-node --insecure
+    ports:
+      - "26257:26257" # SQL — COCKROACH_URL
+      - "8080:8080" # Admin UI — http://localhost:8080
+    volumes:
+      - cockroach_data:/cockroach/cockroach-data
+    healthcheck:
+      # `node status` needs a live SQL layer, so this only passes once the
+      # single node has finished initializing and can serve queries.
+      test: ["CMD", "cockroach", "node", "status", "--insecure", "--host=localhost:26257"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    command: redis-server --requirepass redispw123
+    ports:
+      - "6379:6379" # REDIS_URI
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispw123", "--no-auth-warning", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  cockroach_data:
+    external: true
