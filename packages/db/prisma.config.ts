@@ -2,8 +2,12 @@ import path from "node:path";
 import dotenv from "dotenv";
 import { defineConfig, env } from "prisma/config";
 
+// The repository keeps one .env at the root, shared by the Python API, the
+// agent, and this package. It pointed at apps/web/.env, which the move to
+// apps/client left behind — dotenv loaded nothing, DATABASE_URL was undefined,
+// and `prisma generate` failed the whole install rather than only itself.
 dotenv.config({
-  path: "../../apps/web/.env",
+  path: path.join("..", "..", ".env"),
 });
 
 // `prisma migrate status`/`deploy`/`dev` are BROKEN against this database as of

@@ -1,19 +1,25 @@
+-- CockroachDB v25.4+ creates tables with schema_locked = true by default, which
+-- makes changefeeds faster but rejects the ALTER TABLE ... ADD CONSTRAINT
+-- statements Prisma emits for foreign keys. Disabling it for this session lets
+-- the migration run as generated; new tables revert to the default afterwards.
+SET create_table_with_schema_locked = off;
+
 -- CreateTable
 CREATE TABLE "ai_usage_events" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "workspace_id" TEXT NOT NULL,
-    "service" TEXT NOT NULL,
-    "operation" TEXT NOT NULL,
-    "provider" TEXT NOT NULL,
-    "model" TEXT NOT NULL,
-    "input_tokens" INTEGER,
-    "output_tokens" INTEGER,
-    "total_tokens" INTEGER,
-    "tokens_estimated" BOOLEAN NOT NULL DEFAULT false,
+    "workspace_id" STRING NOT NULL,
+    "service" STRING NOT NULL,
+    "operation" STRING NOT NULL,
+    "provider" STRING NOT NULL,
+    "model" STRING NOT NULL,
+    "input_tokens" INT4,
+    "output_tokens" INT4,
+    "total_tokens" INT4,
+    "tokens_estimated" BOOL NOT NULL DEFAULT false,
     "estimated_usd" DECIMAL(14,10),
-    "latency_ms" INTEGER,
-    "status" TEXT NOT NULL DEFAULT 'ok',
-    "error" TEXT,
+    "latency_ms" INT4,
+    "status" STRING NOT NULL DEFAULT 'ok',
+    "error" STRING,
     "compile_run_id" UUID,
     "chat_session_id" UUID,
     "raw_item_id" UUID,

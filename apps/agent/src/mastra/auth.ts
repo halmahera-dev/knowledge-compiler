@@ -17,7 +17,11 @@ const jwks = createRemoteJWKSet(new URL("/api/auth/jwks", env.AUTH_BASE_URL));
 // baseURL when no explicit audience is set — see plugins/jwt/sign.mjs.
 const audience = env.AUTH_AUDIENCE ?? env.AUTH_BASE_URL;
 
-export type AuthenticatedUser = { id: string };
+export type AuthenticatedUser = {
+  id: string;
+  /** The workspace this token was minted for, from the signed payload. */
+  workspaceId: string | null;
+};
 
 export async function authenticateToken(
   token: string,
@@ -28,7 +32,12 @@ export async function authenticateToken(
       audience,
       algorithms: ["EdDSA"],
     });
-    return payload.sub ? { id: payload.sub } : null;
+    if (!payload.sub) return null;
+    return {
+      id: payload.sub,
+      workspaceId:
+        typeof payload.workspaceId === "string" ? payload.workspaceId : null,
+    };
   } catch {
     return null;
   }

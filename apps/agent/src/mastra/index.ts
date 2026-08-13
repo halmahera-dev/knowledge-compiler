@@ -31,6 +31,7 @@ import { copilotAgent } from "./agents/copilot";
 import { extractorAgent } from "./agents/extractor";
 import { linkerAgent } from "./agents/linker";
 import { summariserAgent } from "./agents/summariser";
+import { reportUsage } from "./api";
 import { authenticateToken, mapUserToResourceId } from "./auth";
 import { config } from "./config";
 import { compileItemWorkflow } from "./workflows/compile-item";
@@ -82,6 +83,15 @@ export const mastra = new Mastra({
           if (!user) return c.json({ error: "Unauthorized" }, 401);
 
           const body = await c.req.json();
+          // The conversation this answer belongs to. Accounting only: without it
+          // every copilot call is invisible on /ai-logs, and the compile pipeline
+          // looks like the only thing spending money.
+          const chatSessionId =
+            typeof body.chatSessionId === "string"
+              ? body.chatSessionId
+              : undefined;
+          const startedAt = Date.now();
+
           const stream = await handleChatStream({
             mastra: c.get("mastra"),
             agentId: "copilotAgent",
@@ -96,6 +106,26 @@ export const mastra = new Mastra({
                   }
                 : undefined,
               abortSignal: c.req.raw.signal,
+              onFinish: chatSessionId
+                ? async (result) => {
+                    await reportUsage({
+                      operation: "copilot",
+                      chatSessionId,
+                      workspaceId: user.workspaceId ?? undefined,
+                      inputTokens: result.totalUsage?.inputTokens,
+                      outputTokens: result.totalUsage?.outputTokens,
+                      latencyMs: Date.now() - startedAt,
+                      status: result.error ? "error" : "ok",
+                      error: result.error
+                        ? String(
+                            typeof result.error === "string"
+                              ? result.error
+                              : result.error.message,
+                          )
+                        : undefined,
+                    });
+                  }
+                : undefined,
             },
           });
 

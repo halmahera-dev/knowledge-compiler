@@ -177,14 +177,19 @@ export async function reportUsage(payload: {
   error?: string;
   runId?: string;
   chatSessionId?: string;
+  /**
+   * The caller's own workspace, from its signed token — a check, never the
+   * attribution. The API still derives whose budget this comes out of from the
+   * run or the session, and refuses the report if the two disagree. Without it,
+   * anyone holding another workspace's session id could file spend against it.
+   */
+  workspaceId?: string;
 }): Promise<void> {
   try {
     await request<void>("/internal/usage", {
       method: "POST",
       body: JSON.stringify({
         service: "agent",
-        // The workspace is not sent: the API derives it from runId or
-        // chatSessionId, so the agent cannot bill another workspace.
         provider: "bedrock-mantle",
         model: config.model.id.replace(/^custom\//, ""),
         ...payload,

@@ -5,8 +5,7 @@
   "type": "module",
   "exports": {
     "./agent": "./src/agent.ts",
-    "./server": "./src/server.ts",
-    "./web": "./src/web.ts"
+    "./server": "./src/server.ts"
   },
   "dependencies": {
     "dotenv": "catalog:",

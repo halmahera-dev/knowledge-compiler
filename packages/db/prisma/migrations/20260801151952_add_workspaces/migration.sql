@@ -1,22 +1,24 @@
 -- Workspaces and wikis.
 --
 -- HAND-WRITTEN, not the raw `prisma migrate diff` output. Prisma's generated
--- version would be unsafe on a populated database in two ways, both of which
--- would lose data:
+-- version was unsafe on a populated database in two ways, both of which would
+-- have lost data:
 --
---   1. `ADD COLUMN workspace_id TEXT NOT NULL` with no default fails outright on
---      a table that already has rows.
---   2. It would emit `DROP COLUMN user_id` followed by `ADD COLUMN user_id` to
---      change the type from UUID to TEXT — which silently discards every
+--   1. `ADD COLUMN workspace_id STRING NOT NULL` with no default fails outright
+--      on a table that already has rows.
+--   2. It emitted `DROP COLUMN user_id` followed by `ADD COLUMN user_id` to
+--      change the type from UUID to STRING — which silently discards every
 --      existing value rather than converting it.
 --
--- Instead: add columns with a sentinel default, replace types in place, then
+-- Instead: add columns with a sentinel default, convert types in place, then
 -- drop the defaults so future inserts must be explicit.
 --
 -- `workspace_id` holds a Better Auth organization id, and `user_id` a Better
--- Auth user id. Both are TEXT, not UUID, because Better Auth generates
--- alphanumeric ids. Neither carries a foreign key: those rows live in a
--- different table (see auth.prisma), owned by @kc/auth.
+-- Auth user id. Both are STRING, not UUID, because Better Auth generates
+-- alphanumeric ids. Neither carries a foreign key: those rows live in the `auth`
+-- schema, owned and migrated by a different service.
+
+SET create_table_with_schema_locked = off;
 
 -- ─── the sentinel ────────────────────────────────────────────────────────────
 -- Rows that predate workspaces are parked here rather than deleted. Nobody is a
@@ -27,10 +29,10 @@
 
 CREATE TABLE IF NOT EXISTS "wikis" (
     "id"           UUID NOT NULL DEFAULT gen_random_uuid(),
-    "workspace_id" TEXT NOT NULL,
-    "name"         TEXT NOT NULL,
-    "slug"         TEXT NOT NULL,
-    "description"  TEXT NOT NULL DEFAULT '',
+    "workspace_id" STRING NOT NULL,
+    "name"         STRING NOT NULL,
+    "slug"         STRING NOT NULL,
+    "description"  STRING NOT NULL DEFAULT '',
     "created_at"   TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at"   TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -55,18 +57,19 @@ ON CONFLICT ("id") DO NOTHING;
 -- Defaults make this safe on populated tables; they are dropped further down so
 -- application inserts cannot silently land in the sentinel workspace.
 
-ALTER TABLE "raw_items"      ADD COLUMN IF NOT EXISTS "workspace_id" TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE "raw_items"      ADD COLUMN IF NOT EXISTS "workspace_id" STRING NOT NULL DEFAULT 'legacy';
 ALTER TABLE "raw_items"      ADD COLUMN IF NOT EXISTS "wiki_id" UUID NOT NULL DEFAULT '00000000-0000-0000-0000-0000000000aa';
-ALTER TABLE "wiki_pages"     ADD COLUMN IF NOT EXISTS "workspace_id" TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE "wiki_pages"     ADD COLUMN IF NOT EXISTS "workspace_id" STRING NOT NULL DEFAULT 'legacy';
 ALTER TABLE "wiki_pages"     ADD COLUMN IF NOT EXISTS "wiki_id" UUID NOT NULL DEFAULT '00000000-0000-0000-0000-0000000000aa';
-ALTER TABLE "graph_nodes"    ADD COLUMN IF NOT EXISTS "workspace_id" TEXT NOT NULL DEFAULT 'legacy';
-ALTER TABLE "graph_edges"    ADD COLUMN IF NOT EXISTS "workspace_id" TEXT NOT NULL DEFAULT 'legacy';
-ALTER TABLE "compile_runs"   ADD COLUMN IF NOT EXISTS "workspace_id" TEXT NOT NULL DEFAULT 'legacy';
-ALTER TABLE "knowledge_gaps" ADD COLUMN IF NOT EXISTS "workspace_id" TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE "graph_nodes"    ADD COLUMN IF NOT EXISTS "workspace_id" STRING NOT NULL DEFAULT 'legacy';
+ALTER TABLE "graph_edges"    ADD COLUMN IF NOT EXISTS "workspace_id" STRING NOT NULL DEFAULT 'legacy';
+ALTER TABLE "compile_runs"   ADD COLUMN IF NOT EXISTS "workspace_id" STRING NOT NULL DEFAULT 'legacy';
+ALTER TABLE "knowledge_gaps" ADD COLUMN IF NOT EXISTS "workspace_id" STRING NOT NULL DEFAULT 'legacy';
 
 -- ─── drop the old user_id indexes FIRST ──────────────────────────────────────
--- Dropped explicitly, ahead of the column drop below, so the index lifecycle
--- here is spelled out rather than left to an implicit cascade.
+-- CockroachDB rejects `ALTER COLUMN TYPE` when the column participates in an
+-- index (unimplemented, cockroachdb#47636), so these have to be removed before
+-- user_id can be converted from UUID to STRING — not after.
 
 DROP INDEX IF EXISTS "raw_items_user_content_hash_key" CASCADE;
 DROP INDEX IF EXISTS "raw_items_user_created_idx" CASCADE;
@@ -79,21 +82,23 @@ DROP INDEX IF EXISTS "knowledge_gaps_user_question_key" CASCADE;
 DROP INDEX IF EXISTS "knowledge_gaps_user_status_idx" CASCADE;
 
 
--- ─── replace user_id UUID -> TEXT ────────────────────────────────────────────
+-- ─── replace user_id UUID -> STRING ──────────────────────────────────────────
 -- Better Auth ids are alphanumeric, not UUIDs, so this column changes type.
 --
--- It is REPLACED rather than converted: the old values carry no information
--- worth preserving — every row holds the same hardcoded placeholder
--- `00000000-0000-0000-0000-000000000001` from the single-user build, which
--- identifies no real account. Converting it to text would faithfully preserve a
--- value that means nothing.
+-- It is REPLACED rather than converted, for two reasons. CockroachDB only
+-- implements ALTER COLUMN TYPE in the declarative schema changer, which this
+-- migration cannot use (it needs schema_locked off for the FK statements). And
+-- more importantly the old values carry no information worth preserving: every
+-- row holds the same hardcoded placeholder `00000000-0000-0000-0000-000000000001`
+-- from the single-user build, which identifies no real account. Converting it to
+-- text would faithfully preserve a value that means nothing.
 --
 -- Legacy rows land on the 'legacy' sentinel alongside their workspace.
 
 ALTER TABLE "raw_items"    DROP COLUMN IF EXISTS "user_id";
 ALTER TABLE "compile_runs" DROP COLUMN IF EXISTS "user_id";
-ALTER TABLE "raw_items"    ADD COLUMN IF NOT EXISTS "user_id" TEXT NOT NULL DEFAULT 'legacy';
-ALTER TABLE "compile_runs" ADD COLUMN IF NOT EXISTS "user_id" TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE "raw_items"    ADD COLUMN IF NOT EXISTS "user_id" STRING NOT NULL DEFAULT 'legacy';
+ALTER TABLE "compile_runs" ADD COLUMN IF NOT EXISTS "user_id" STRING NOT NULL DEFAULT 'legacy';
 
 -- graph_nodes, graph_edges, knowledge_gaps and wiki_pages are scoped by
 -- workspace alone — who saved a concept is not interesting, and keeping a
@@ -157,29 +162,29 @@ ALTER TABLE "knowledge_gaps" ALTER COLUMN "workspace_id" DROP DEFAULT;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- MANUAL: vector indexes
 --
--- Prisma cannot express these and `migrate dev` proposes dropping them on every
--- run as schema drift (pgvector/pgvector-node#18). They are recreated here only
--- if the drops above removed them.
+-- Prisma cannot express these and `migrate diff` proposes dropping them on every
+-- run; `scripts/migrate.mjs` strips those DROP statements. They are recreated
+-- here only if the drops above removed them.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE INDEX IF NOT EXISTS "wiki_pages_embedding_idx"
-    ON "wiki_pages" USING hnsw ("embedding" vector_cosine_ops);
+CREATE VECTOR INDEX IF NOT EXISTS "wiki_pages_embedding_idx"
+    ON "wiki_pages" ("embedding" vector_cosine_ops);
 
-CREATE INDEX IF NOT EXISTS "raw_items_embedding_idx"
-    ON "raw_items" USING hnsw ("embedding" vector_cosine_ops);
+CREATE VECTOR INDEX IF NOT EXISTS "raw_items_embedding_idx"
+    ON "raw_items" ("embedding" vector_cosine_ops);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Pre-existing content now lives in workspace 'legacy', wiki 'imported'. Nobody
 -- is a member of that workspace, so it is invisible in the app. To adopt it into
 -- a real workspace, run with that workspace's id:
 --
---   UPDATE raw_items      SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
---   UPDATE wiki_pages     SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
---   UPDATE graph_nodes    SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
---   UPDATE graph_edges    SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
---   UPDATE compile_runs   SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
---   UPDATE knowledge_gaps SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
---   UPDATE wikis          SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.raw_items      SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.wiki_pages     SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.graph_nodes    SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.graph_edges    SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.compile_runs   SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.knowledge_gaps SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
+--   UPDATE kc.wikis          SET workspace_id = '<id>' WHERE workspace_id = 'legacy';
 --
--- Or discard it:  DELETE FROM wikis WHERE workspace_id = 'legacy';  (cascades)
+-- Or discard it:  DELETE FROM kc.wikis WHERE workspace_id = 'legacy';  (cascades)
 -- ─────────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,11 @@
--- pgvector: needed before any column can use the `vector` type.
-CREATE EXTENSION IF NOT EXISTS vector;
+-- CockroachDB v25.4+ creates tables with schema_locked = true by default, which
+-- makes changefeeds faster but rejects the ALTER TABLE ... ADD CONSTRAINT
+-- statements Prisma emits for foreign keys. Disabling it for this session lets
+-- the migration run as generated; new tables revert to the default afterwards.
+SET create_table_with_schema_locked = off;
+
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
 CREATE TYPE "capture_type" AS ENUM ('paste', 'clip', 'link');
@@ -30,12 +36,12 @@ CREATE TABLE "raw_items" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
     "capture_type" "capture_type" NOT NULL,
-    "source_url" TEXT,
-    "title" TEXT,
-    "content" TEXT NOT NULL,
-    "content_hash" TEXT NOT NULL,
-    "embedding" vector(1024),
-    "embedding_model" TEXT,
+    "source_url" STRING,
+    "title" STRING,
+    "content" STRING NOT NULL,
+    "content_hash" STRING NOT NULL,
+    "embedding" VECTOR(1024),
+    "embedding_model" STRING,
     "status" "item_status" NOT NULL DEFAULT 'pending',
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -46,11 +52,11 @@ CREATE TABLE "raw_items" (
 CREATE TABLE "wiki_pages" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
-    "slug" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "summary" TEXT NOT NULL DEFAULT '',
-    "embedding" vector(1024),
-    "embedding_model" TEXT,
+    "slug" STRING NOT NULL,
+    "title" STRING NOT NULL,
+    "summary" STRING NOT NULL DEFAULT '',
+    "embedding" VECTOR(1024),
+    "embedding_model" STRING,
     "current_revision_id" UUID,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -62,9 +68,9 @@ CREATE TABLE "wiki_pages" (
 CREATE TABLE "wiki_page_revisions" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "page_id" UUID NOT NULL,
-    "revision_no" INTEGER NOT NULL,
-    "title" TEXT NOT NULL,
-    "summary" TEXT NOT NULL DEFAULT '',
+    "revision_no" INT4 NOT NULL,
+    "title" STRING NOT NULL,
+    "summary" STRING NOT NULL DEFAULT '',
     "body" JSONB NOT NULL DEFAULT '[]',
     "diff" JSONB NOT NULL DEFAULT '{}',
     "compile_run_id" UUID,
@@ -78,11 +84,11 @@ CREATE TABLE "wiki_claims" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "page_id" UUID NOT NULL,
     "revision_id" UUID NOT NULL,
-    "section" TEXT NOT NULL DEFAULT '',
-    "position" INTEGER NOT NULL DEFAULT 0,
-    "text" TEXT NOT NULL,
+    "section" STRING NOT NULL DEFAULT '',
+    "position" INT4 NOT NULL DEFAULT 0,
+    "text" STRING NOT NULL,
     "status" "claim_status" NOT NULL DEFAULT 'asserted',
-    "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+    "confidence" FLOAT8 NOT NULL DEFAULT 0.5,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "wiki_claims_pkey" PRIMARY KEY ("id")
@@ -93,9 +99,9 @@ CREATE TABLE "claim_sources" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "claim_id" UUID NOT NULL,
     "raw_item_id" UUID NOT NULL,
-    "quote" TEXT NOT NULL DEFAULT '',
-    "char_start" INTEGER,
-    "char_end" INTEGER,
+    "quote" STRING NOT NULL DEFAULT '',
+    "char_start" INT4,
+    "char_end" INT4,
     "stance" "source_stance" NOT NULL DEFAULT 'supports',
 
     CONSTRAINT "claim_sources_pkey" PRIMARY KEY ("id")
@@ -115,9 +121,9 @@ CREATE TABLE "graph_nodes" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
     "wiki_page_id" UUID,
-    "label" TEXT NOT NULL,
+    "label" STRING NOT NULL,
     "kind" "node_kind" NOT NULL DEFAULT 'topic',
-    "weight" INTEGER NOT NULL DEFAULT 1,
+    "weight" INT4 NOT NULL DEFAULT 1,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -131,7 +137,7 @@ CREATE TABLE "graph_edges" (
     "source_node_id" UUID NOT NULL,
     "target_node_id" UUID NOT NULL,
     "relation" "edge_relation" NOT NULL DEFAULT 'related_to',
-    "weight" DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    "weight" FLOAT8 NOT NULL DEFAULT 1.0,
     "evidence_raw_item_id" UUID,
     "created_by_run_id" UUID,
     "withdrawn_at" TIMESTAMPTZ(6),
@@ -146,10 +152,10 @@ CREATE TABLE "compile_runs" (
     "user_id" UUID NOT NULL,
     "raw_item_id" UUID NOT NULL,
     "status" "run_status" NOT NULL DEFAULT 'queued',
-    "mastra_run_id" TEXT,
+    "mastra_run_id" STRING,
     "diff" JSONB,
-    "error" TEXT,
-    "raw_output" TEXT,
+    "error" STRING,
+    "raw_output" STRING,
     "started_at" TIMESTAMPTZ(6),
     "finished_at" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -162,8 +168,8 @@ CREATE TABLE "knowledge_gaps" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
     "node_id" UUID,
-    "question" TEXT NOT NULL,
-    "reason" TEXT NOT NULL DEFAULT '',
+    "question" STRING NOT NULL,
+    "reason" STRING NOT NULL DEFAULT '',
     "status" "gap_status" NOT NULL DEFAULT 'open',
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -268,14 +274,16 @@ ALTER TABLE "knowledge_gaps" ADD CONSTRAINT "knowledge_gaps_node_id_fkey" FOREIG
 --
 -- Prisma cannot express vector indexes in schema.prisma, and `prisma migrate dev`
 -- deletes hand-added ones because it reads them as schema drift
--- (pgvector/pgvector-node#18). They are therefore appended here.
+-- (pgvector/pgvector-node#18). They are therefore appended here and migrations
+-- are applied with `prisma migrate deploy`, which does not drift-check.
 --
 -- Cosine, because embeddings are compared by direction not magnitude. These
 -- accelerate the "which existing page does this item belong to" query.
+-- Requires: SET CLUSTER SETTING feature.vector_index.enabled = true (pnpm db:up).
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE INDEX IF NOT EXISTS "wiki_pages_embedding_idx"
-    ON "wiki_pages" USING hnsw ("embedding" vector_cosine_ops);
+CREATE VECTOR INDEX IF NOT EXISTS "wiki_pages_embedding_idx"
+    ON "wiki_pages" ("embedding" vector_cosine_ops);
 
-CREATE INDEX IF NOT EXISTS "raw_items_embedding_idx"
-    ON "raw_items" USING hnsw ("embedding" vector_cosine_ops);
+CREATE VECTOR INDEX IF NOT EXISTS "raw_items_embedding_idx"
+    ON "raw_items" ("embedding" vector_cosine_ops);

@@ -1,6 +1,10 @@
-import "dotenv/config";
+import { loadRootEnv } from "./load";
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
+
+// Called, not imported for its side effect: bundlers drop side-effect-only
+// imports, and this one vanished from Mastra's output.
+loadRootEnv();
 
 export const env = createEnv({
   server: {
@@ -19,10 +23,10 @@ export const env = createEnv({
     // and is also the `iss`/default `aud` every token carries. Must match the
     // BETTER_AUTH_URL that signed the token — see apps/api/app/config.py,
     // which verifies the same tokens against the same default.
-    AUTH_BASE_URL: z.url().default("http://localhost:5173"),
+    AUTH_BASE_URL: z.url().default("http://localhost:3000"),
     AUTH_AUDIENCE: z.string().optional(),
     // The browser origin allowed to call the memory API directly.
-    CORS_ORIGIN: z.url().default("http://localhost:5173"),
+    CORS_ORIGIN: z.url().default("http://localhost:3000"),
   },
   runtimeEnv: process.env,
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,

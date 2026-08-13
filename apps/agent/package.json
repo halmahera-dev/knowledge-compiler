@@ -27,7 +27,9 @@
     "@mastra/loggers": "1.2.0",
     "@mastra/memory": "^1.26.0",
     "@mastra/observability": "1.16.5",
+    "@t3-oss/env-core": "^0.13.11",
     "ai": "^7.0.58",
+    "dotenv": "catalog:",
     "jose": "^6.2.8",
     "zod": "^4.4.3"
   },
