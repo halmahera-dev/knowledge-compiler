@@ -22,6 +22,22 @@ interface RetrievedClaim {
   sourceUrl: string | null;
 }
 
+/**
+ * A named cluster of the workspace. Orientation, never evidence.
+ *
+ * A claim carries a verbatim quote from a source the reader saved, so an
+ * answer resting on it can be checked. A theme is prose the summariser agent
+ * wrote about a group of pages — true to the material, but one remove from it,
+ * with nothing to check it against. It answers "what is in here", which claims
+ * cannot, and must never be used to answer "is X true".
+ */
+interface WorkspaceTheme {
+  title: string;
+  summary: string;
+  nodeCount: number;
+  pageCount: number;
+}
+
 const requestContextSchema = z.object({
   /** The reader's own bearer token, forwarded from the web app. */
   token: z.string(),
@@ -64,6 +80,15 @@ export const searchKnowledge = createTool({
         sourceUrl: z.string().nullable(),
       }),
     ),
+    /** The workspace's areas — orientation, never evidence. See WorkspaceTheme. */
+    themes: z.array(
+      z.object({
+        title: z.string(),
+        summary: z.string(),
+        nodeCount: z.number(),
+        pageCount: z.number(),
+      }),
+    ),
     /** Set when the API declined for a reason the reader can act on. Relay this verbatim and stop. */
     blocked: z.string().nullable(),
   }),
@@ -71,7 +96,7 @@ export const searchKnowledge = createTool({
   execute: async ({ query }, { requestContext }) => {
     const token = requestContext?.get("token");
     if (!token) {
-      return { claims: [], blocked: "You are not signed in." };
+      return { claims: [], themes: [], blocked: "You are not signed in." };
     }
 
     const url = new URL("/api/v1/copilot/search", config.api.baseUrl);
@@ -91,11 +116,12 @@ export const searchKnowledge = createTool({
           `retrieval failed (${response.status}): ${body.slice(0, 200)}`,
         );
       }
-      return { claims: [], blocked: explain(response.status) };
+      return { claims: [], themes: [], blocked: explain(response.status) };
     }
 
     const data = (await response.json()) as {
       claims: RetrievedClaim[];
+      themes?: WorkspaceTheme[];
       semantic: boolean;
     };
 
@@ -104,6 +130,6 @@ export const searchKnowledge = createTool({
       label: `c${i + 1}`,
     }));
 
-    return { claims, blocked: null };
+    return { claims, themes: data.themes ?? [], blocked: null };
   },
 });

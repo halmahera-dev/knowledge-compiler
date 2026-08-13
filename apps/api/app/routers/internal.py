@@ -23,6 +23,8 @@ from ..embeddings import build_embedding_input
 from ..models import ChatSession, CompileRun, RawItem, WikiClaim, WikiPage, WikiPageRevision
 from ..schemas import (
     ApplyCompileRequest,
+    CommunityMaterialOut,
+    CommunitySummaryRequest,
     CompileDiff,
     EmbedRequest,
     EmbedResponse,
@@ -30,13 +32,15 @@ from ..schemas import (
     MatchRequest,
     MatchResponse,
     PageClaimsResponse,
+    PendingCommunitiesRequest,
+    PendingCommunitiesResponse,
     RawItemContent,
     RunFailedRequest,
     RunStepRequest,
     SectionOut,
     UsageRecordRequest,
 )
-from ..services import usage
+from ..services import communities, usage
 from ..services.compile import CompileError, apply_compile
 from ..services.matching import find_similar_pages, resolve_threshold
 
@@ -270,3 +274,55 @@ async def record_usage(payload: UsageRecordRequest, db: DbDep) -> None:
         raw_item_id=raw_item_id,
     )
     await db.commit()
+
+
+#: The API's own ceiling on how many clusters one compile may name.
+#:
+#: Enforced here rather than trusted from the request: the agent asking for a
+#: larger batch is the exact mistake this is meant to survive, and the cost of
+#: getting it wrong is an unbounded number of model calls per save.
+MAX_COMMUNITIES_PER_RUN = 5
+
+
+@router.post("/communities/pending", response_model=PendingCommunitiesResponse)
+async def pending_communities(
+    payload: PendingCommunitiesRequest, db: DbDep
+) -> PendingCommunitiesResponse:
+    """Clusters that need naming, with the material to name them from.
+
+    Returns nothing most of the time, which is the point: a cluster keeps its
+    summary as long as its membership is unchanged, so a compile that shifted
+    nothing pays no model call at all.
+    """
+    scope = await scope_from_run(db, payload.run_id)
+    limit = max(1, min(payload.limit, MAX_COMMUNITIES_PER_RUN))
+
+    return PendingCommunitiesResponse(
+        communities=[
+            CommunityMaterialOut(
+                fingerprint=material.fingerprint,
+                community=material.community,
+                node_count=material.node_count,
+                page_count=material.page_count,
+                labels=material.labels,
+                pages=material.pages,
+            )
+            for material in await communities.unsummarised(db, scope, limit)
+        ]
+    )
+
+
+@router.post("/communities/summary", status_code=status.HTTP_204_NO_CONTENT)
+async def store_community_summary(payload: CommunitySummaryRequest, db: DbDep) -> None:
+    """Attach the agent's prose to a cluster.
+
+    A fingerprint that no longer exists is dropped rather than raising: another
+    save landed while this summary was being written, so the cluster it describes
+    is gone. Failing the call would fail a compile that in fact succeeded.
+    """
+    scope = await scope_from_run(db, payload.run_id)
+    stored = await communities.store_summary(
+        db, scope, payload.fingerprint, payload.title.strip(), payload.summary.strip()
+    )
+    if stored:
+        await db.commit()

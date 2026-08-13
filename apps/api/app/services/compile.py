@@ -25,6 +25,7 @@ from ..models import (
     CompileRun,
     GraphEdge,
     GraphNode,
+    GraphNodeSource,
     KnowledgeGap,
     RawItem,
     WikiClaim,
@@ -40,6 +41,8 @@ from ..schemas import (
 )
 from ..scoping import Scope
 from .anchoring import locate_quote
+from .clustering import detect_communities
+from .matching import find_similar_pages
 
 log = structlog.get_logger(__name__)
 
@@ -234,6 +237,71 @@ async def _upsert_node(
     return node, True
 
 
+async def _record_node_source(db: AsyncSession, node: GraphNode, raw_item_id: uuid.UUID) -> None:
+    """Note that this capture is where the node was seen.
+
+    Nothing else records it. Edges are only ever written between nodes a single
+    compile established, so without this the graph has no way to know that two
+    concepts came out of the same document — which is the only cheap signal
+    available for connecting one save to another.
+
+    Idempotent: a concept named twice in one document, or a node re-seen on a
+    later compile of the same item, must not fail the compile.
+    """
+    exists = await db.scalar(
+        select(GraphNodeSource).where(
+            GraphNodeSource.node_id == node.id,
+            GraphNodeSource.raw_item_id == raw_item_id,
+        )
+    )
+    if exists is None:
+        db.add(GraphNodeSource(node_id=node.id, raw_item_id=raw_item_id))
+
+
+async def _link_candidates(
+    db: AsyncSession, scope: Scope, raw_item_id: uuid.UUID, exclude_page_id: uuid.UUID
+) -> dict[str, GraphNode]:
+    """Existing topics the agent is allowed to link this document to.
+
+    Cross-document edges are the most valuable ones the product can produce — a
+    `contradicts` between two things you read weeks apart is the whole argument
+    for compiling rather than retrieving. They were also impossible: the edge
+    loop below only ever accepted nodes a single compile established, so nothing
+    could span two saves.
+
+    The guard that caused it was right, though, and is kept. A saved document is
+    untrusted text, and text that can name any topic in the workspace can ask for
+    an edge between a company and a crime. So the candidate list is decided
+    **here**, from the raw item's own stored embedding, and never taken from the
+    request — an agent shaped by injected content can still choose a wrong
+    relation, but only among topics this API independently found to be near the
+    document. Naming an arbitrary node is not one of the things it can do.
+
+    Re-derived rather than passed through for the same reason. It costs one
+    vector query and no embedding call, since the item was embedded on save.
+    """
+    item = await db.get(RawItem, raw_item_id)
+    if item is None or item.embedding is None:
+        return {}
+
+    candidates = await find_similar_pages(
+        db, workspace_id=scope.workspace_id, embedding=item.embedding
+    )
+    page_ids = [c.page_id for c in candidates if c.page_id != exclude_page_id]
+    if not page_ids:
+        return {}
+
+    nodes = (
+        await db.scalars(
+            select(GraphNode).where(
+                GraphNode.workspace_id == scope.workspace_id,
+                GraphNode.wiki_page_id.in_(page_ids),
+            )
+        )
+    ).all()
+    return {node.label.lower(): node for node in nodes}
+
+
 async def _apply_graph(
     db: AsyncSession, req: ApplyCompileRequest, page: WikiPage, scope: Scope
 ) -> tuple[list[str], list[CompileDiffEdge]]:
@@ -245,6 +313,7 @@ async def _apply_graph(
     )
     if is_new:
         created_labels.append(topic_node.label)
+    await _record_node_source(db, topic_node, req.raw_item_id)
 
     nodes: dict[str, GraphNode] = {topic_node.label.lower(): topic_node}
     for concept in req.concepts[:12]:
@@ -252,15 +321,23 @@ async def _apply_graph(
             continue
         node, is_new = await _upsert_node(db, scope, concept, page_id=None, kind="entity")
         nodes[node.label.lower()] = node
+        await _record_node_source(db, node, req.raw_item_id)
         if is_new:
             created_labels.append(node.label)
 
+    # Topics from elsewhere in the workspace that this document may link to.
+    # Added after the compile's own nodes so a label appearing in both resolves
+    # to the node this compile just established, not to a namesake.
+    candidates = await _link_candidates(db, scope, req.raw_item_id, page.id)
+    linkable = {**candidates, **nodes}
+
     created_edges: list[CompileDiffEdge] = []
     for edge in req.edges[:20]:
-        source = nodes.get(edge.source.strip().lower())
-        target = nodes.get(edge.target.strip().lower())
-        # Only link nodes this compile actually established, so the agent cannot
-        # invent edges between topics it never saw.
+        source = linkable.get(edge.source.strip().lower())
+        target = linkable.get(edge.target.strip().lower())
+        # Only nodes this compile established, or ones the API independently
+        # found near this document. The agent never names a topic of its own
+        # choosing — see _link_candidates.
         if source is None or target is None or source.id == target.id:
             continue
 
@@ -405,6 +482,18 @@ async def apply_compile(
 
     node_labels, edges = await _apply_graph(db, req, page, scope)
     gaps = await _apply_gaps(db, req, scope)
+
+    # Recluster after the graph changed rather than on a schedule. A save is the
+    # only thing that moves the topology, and Louvain over a personal knowledge
+    # base is milliseconds — cheap enough that stale clusters are not worth the
+    # complexity of deciding when to refresh them.
+    #
+    # Failure is swallowed: a colour on the graph must never be the reason a
+    # compiled page is lost.
+    try:
+        await detect_communities(db, scope)
+    except Exception:  # noqa: BLE001 — see above.
+        log.warning("community_detection_failed", run_id=str(req.run_id), exc_info=True)
 
     diff = CompileDiff(
         run_id=req.run_id,

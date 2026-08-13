@@ -8,23 +8,33 @@
  */
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
+
 import { compilerAgent } from "../agents/compiler";
 import { extractorAgent } from "../agents/extractor";
 import { linkerAgent } from "../agents/linker";
+import { summariserAgent } from "../agents/summariser";
 import {
   applyCompile,
+  type CommunityMaterial,
   type ExistingClaim,
   getPageClaims,
   getRawItem,
   type ModelUsage,
   type PageCandidate,
+  pendingCommunities,
   reportFailure,
   reportStep,
   reportUsage,
   searchSimilarPages,
+  storeCommunitySummary,
 } from "../api";
 import { config } from "../config";
-import { compilationSchema, extractionSchema, linkageSchema } from "../schemas";
+import {
+  communitySummarySchema,
+  compilationSchema,
+  extractionSchema,
+  linkageSchema,
+} from "../schemas";
 
 const workflowInput = z.object({
   runId: z.string(),
@@ -338,28 +348,60 @@ const link = createStep({
   inputSchema: afterCompile,
   outputSchema: afterLink,
   execute: async ({ inputData }) => {
-    const { runId, extraction, compilation } = inputData;
+    const { runId, extraction, compilation, candidates, targetPageId } = inputData;
     await reportStep(runId, "link", "Connecting this into the graph");
 
     // The node labels the API will actually create. Constraining the model to this
     // list is what stops it proposing edges between nodes that do not exist.
     const available = [compilation.title, ...extraction.concepts];
 
+    /*
+     * Pages elsewhere in the workspace this document may also link to.
+     *
+     * Cross-document edges are the ones worth having — a `contradicts` between
+     * two things read weeks apart is the argument for compiling rather than
+     * retrieving — and until now they were impossible: the API accepted edges
+     * only between nodes a single compile established.
+     *
+     * These are the neighbours the match step already found, so they cost
+     * nothing extra and are relevant by construction. The merge target is left
+     * out: this compile folds into that page, so an edge to it would have a page
+     * extending itself.
+     *
+     * The list is advisory. The API re-derives its own from the item's stored
+     * embedding and accepts nothing outside it, so text injected into a source
+     * cannot reach a topic of its choosing by naming one here.
+     */
+    const existingPages = candidates
+      .filter((candidate) => candidate.pageId !== targetPageId)
+      .map((candidate) => candidate.title);
+
     const linkage = await generateStructured(
       linkerAgent,
       `Page: ${compilation.title}
 Summary: ${compilation.summary}
 
-Available nodes — use these labels EXACTLY, and only these:
+Nodes from this document — use these labels EXACTLY:
 ${available.map((label) => `- ${label}`).join("\n")}
-
+${
+  existingPages.length > 0
+    ? `
+Pages already in this knowledge base, on related topics. You may link to these
+too, using their titles EXACTLY. Only where a relationship genuinely holds — a
+contradiction or a prerequisite across two sources is worth far more than a vague
+"related", and a wrong one is worse than none:
+${existingPages.map((title) => `- ${title}`).join("\n")}`
+    : ""
+}
 Draw the typed relationships that genuinely hold between them, and raise any real
 knowledge gap this page exposes.`,
       linkageSchema,
       { runId, step: "link" },
     );
 
-    const valid = new Set(available.map((label) => label.trim().toLowerCase()));
+    const valid = new Set(
+      [...available, ...existingPages].map((label) => label.trim().toLowerCase()),
+    );
     const edges = linkage.edges.filter(
       (edge) =>
         valid.has(edge.source.trim().toLowerCase()) &&
@@ -420,6 +462,120 @@ const persist = createStep({
   },
 });
 
+// ─── 6. name clusters ────────────────────────────────────────────────────────
+
+/**
+ * Give the reshaped clusters their names.
+ *
+ * Runs after persist because it depends on it: applying the compile is what
+ * re-runs community detection, so until that has happened there is nothing new
+ * to name.
+ *
+ * Nothing here may fail the run. The page is already written and the graph is
+ * already correct by the time this starts — a cluster left unnamed is a missing
+ * label on a working knowledge base, and reporting that as a failed compile
+ * would be a lie about what happened to the reader's document.
+ */
+const nameClusters = createStep({
+  id: "name-clusters",
+  inputSchema: workflowOutput,
+  outputSchema: workflowOutput,
+  execute: async ({ inputData }) => {
+    const { runId } = inputData;
+
+    try {
+      const pending = await pendingCommunities(runId);
+      if (pending.length === 0) return inputData;
+
+      let named = 0;
+      for (const cluster of pending) {
+        const summary = await summariseCluster(runId, cluster);
+        if (!summary) continue;
+
+        await storeCommunitySummary({
+          runId,
+          fingerprint: cluster.fingerprint,
+          title: summary.title,
+          summary: summary.summary,
+        });
+        named += 1;
+      }
+
+      if (named > 0) {
+        await reportStep(
+          runId,
+          "name-clusters",
+          named === 1 ? "Named a cluster of the graph" : `Named ${named} clusters of the graph`,
+        );
+      }
+    } catch (error) {
+      // Logged, not raised. See the note above.
+      console.warn(
+        `[name-clusters] skipped for run ${runId}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+
+    return inputData;
+  },
+});
+
+/**
+ * One naming call, or null.
+ *
+ * Deliberately not `generateStructured`: that helper reports a run as FAILED
+ * when the model will not produce the schema, which is right for a step the
+ * compile depends on and wrong for one that runs after it succeeded. Here a
+ * refusal costs a label, so it returns null and the cluster is simply picked up
+ * again on the next save.
+ */
+async function summariseCluster(
+  runId: string,
+  cluster: CommunityMaterial,
+): Promise<{ title: string; summary: string } | null> {
+  const pages = cluster.pages
+    .map(([title, summary]) => `- ${title}${summary ? `: ${summary}` : ""}`)
+    .join("\n");
+
+  const prompt = [
+    `This cluster holds ${cluster.nodeCount} concepts across ${cluster.pageCount} compiled pages.`,
+    "",
+    `CONCEPTS: ${cluster.labels.join(", ")}`,
+    pages && `\nPAGES:\n${pages}`,
+    "",
+    "Name this cluster and say what it covers.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const startedAt = Date.now();
+  try {
+    const response = await summariserAgent.generate(prompt, {
+      structuredOutput: { schema: communitySummarySchema },
+    });
+
+    await reportUsage({
+      operation: "name-clusters",
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+      latencyMs: Date.now() - startedAt,
+      runId,
+    });
+
+    const parsed = communitySummarySchema.safeParse(response.object);
+    return parsed.success ? parsed.data : null;
+  } catch (error) {
+    await reportUsage({
+      operation: "name-clusters",
+      latencyMs: Date.now() - startedAt,
+      status: "error",
+      error: error instanceof Error ? error.message : String(error),
+      runId,
+    });
+    return null;
+  }
+}
+
 export const compileItemWorkflow = createWorkflow({
   id: "compile-item",
   description: "Compile one captured item into the wiki and graph.",
@@ -431,4 +587,5 @@ export const compileItemWorkflow = createWorkflow({
   .then(compile)
   .then(link)
   .then(persist)
+  .then(nameClusters)
   .commit();

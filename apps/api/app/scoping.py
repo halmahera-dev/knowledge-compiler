@@ -24,8 +24,10 @@ from .models import (
     ChatSession,
     ClaimSource,
     CompileRun,
+    GraphCommunity,
     GraphEdge,
     GraphNode,
+    GraphNodeSource,
     KnowledgeGap,
     RawItem,
     Wiki,
@@ -48,6 +50,7 @@ WORKSPACE_OWNED = (
     Wiki,
     ChatSession,
     AiUsageEvent,
+    GraphCommunity,
 )
 
 #: Models reachable only through a parent. Listing them explicitly means a new
@@ -58,6 +61,7 @@ DERIVED_OWNERSHIP = {
     WikiPageSource: "page_id",
     ClaimSource: "claim_id",
     ChatMessage: "session_id",
+    GraphNodeSource: "node_id",
 }
 
 

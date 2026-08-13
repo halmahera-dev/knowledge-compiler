@@ -16,10 +16,18 @@ from fastapi import APIRouter, Query
 from ..config import get_settings
 from ..deps import DbDep, EmbedderDep, ScopeDep
 from ..ratelimit import check_hourly
-from ..schemas import CopilotSearchResponse, RetrievedClaimOut
+from ..schemas import CopilotSearchResponse, RetrievedClaimOut, ThemeOut
+from ..services.communities import overview
 from ..services.retrieval import DEFAULT_LIMIT, search_claims
 
 router = APIRouter(prefix="/api/v1/copilot", tags=["copilot"])
+
+#: How many themes travel with an answer.
+#:
+#: A ceiling rather than the whole map: the themes are orientation, and a
+#: workspace with forty of them would spend most of the prompt on the map
+#: instead of on the claims the answer has to rest on.
+MAX_THEMES = 8
 
 
 @router.get("/search", response_model=CopilotSearchResponse)
@@ -50,9 +58,25 @@ async def search(
         db, scope=scope, query=q, embedding=embedding, limit=limit
     )
 
+    # Sent with every answer, not only when retrieval comes back empty. A
+    # question about a specific fact still benefits from knowing what else the
+    # workspace holds — it is what lets an answer say which neighbouring area
+    # covers the part the claims do not.
+    themes = [
+        ThemeOut(
+            title=view.title,
+            summary=view.summary,
+            node_count=view.node_count,
+            page_count=view.page_count,
+        )
+        for view in await overview(db, scope)
+        if view.title and view.summary
+    ][:MAX_THEMES]
+
     return CopilotSearchResponse(
         query=q,
         semantic=embedding is not None,
+        themes=themes,
         claims=[
             RetrievedClaimOut(
                 claim_id=c.claim_id,

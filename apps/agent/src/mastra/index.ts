@@ -30,6 +30,7 @@ import { compilerAgent } from "./agents/compiler";
 import { copilotAgent } from "./agents/copilot";
 import { extractorAgent } from "./agents/extractor";
 import { linkerAgent } from "./agents/linker";
+import { summariserAgent } from "./agents/summariser";
 import { authenticateToken, mapUserToResourceId } from "./auth";
 import { config } from "./config";
 import { compileItemWorkflow } from "./workflows/compile-item";
@@ -43,7 +44,7 @@ export const mastra = new Mastra({
   },
   // Registered so each stage can be exercised on its own in the Mastra
   // playground; compile-item drives them directly rather than through the registry.
-  agents: { extractorAgent, compilerAgent, linkerAgent, copilotAgent },
+  agents: { extractorAgent, compilerAgent, linkerAgent, copilotAgent, summariserAgent },
   storage: new MastraCompositeStore({
     id: "composite-storage",
     default: new LibSQLStore({

@@ -326,6 +326,8 @@ class GraphNode(Base):
     )
     #: how much saved content touches this topic; drives node radius (PRD §6.4)
     weight: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    #: Which cluster Louvain put this node in, or None before the first run.
+    community: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = _now()
     updated_at: Mapped[dt.datetime] = _now()
 
@@ -539,3 +541,55 @@ class AiUsageEvent(Base):
 
     # No __table_args__: schema.prisma owns the indexes, as it does for every
     # other model here, and Base.metadata.schema already puts this in `kc`.
+
+
+
+class GraphNodeSource(Base):
+    """Which capture a graph node came out of.
+
+    Without this the graph cannot connect anything across documents. Edges are
+    written only between nodes a single compile established, so nothing ever
+    linked two saves — 68 nodes came out as 28 disconnected components.
+
+    Mirrors ``wiki_page_sources`` deliberately: same shape, same composite key.
+    """
+
+    __tablename__ = "graph_node_sources"
+
+    node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("graph_nodes.id", ondelete="CASCADE"), primary_key=True
+    )
+    raw_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("raw_items.id", ondelete="CASCADE"), primary_key=True
+    )
+    first_seen_at: Mapped[dt.datetime] = _now()
+
+
+class GraphCommunity(Base):
+    """A cluster Louvain found, and what it is about.
+
+    Keyed by a fingerprint of its membership, not by the community number. The
+    numbers are reassigned on every detection run, so a summary stored against
+    one would quietly end up describing a different set of nodes. The fingerprint
+    is also what makes a summary reusable: unchanged membership means the prose
+    still holds and a model call is skipped.
+    """
+
+    __tablename__ = "graph_communities"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    workspace_id: Mapped[str] = mapped_column(Text, nullable=False)
+    #: sha256 of the sorted member node ids.
+    fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    #: The number this cluster currently carries. Never an identity over time.
+    community: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    title: Mapped[str | None] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(Text)
+
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    created_at: Mapped[dt.datetime] = _now()
+    updated_at: Mapped[dt.datetime] = _now()
+    summarised_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))

@@ -44,3 +44,11 @@ yarn.lock
 
 # Misc
 *.pem
+
+# Holds a real CockroachDB Cloud service-account key. Same rule as .env: the
+# working copy is yours, the committed one is .mcp.json.example.
+.mcp.json
+
+# Built from apps/extension by scripts/pack-extension.mjs on every web build.
+# Committing it would let the download drift behind the source.
+apps/web/public/knowledge-compiler-extension.zip

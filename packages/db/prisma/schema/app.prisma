@@ -161,6 +161,7 @@ model RawItem {
   compileRuns  CompileRun[]
   claimSources ClaimSource[]
   pageSources  WikiPageSource[]
+  graphNodeSources GraphNodeSource[]
   edges        GraphEdge[]
 
   wiki Wiki @relation(fields: [wikiId], references: [id], onDelete: Cascade)
@@ -302,6 +303,29 @@ model WikiPageSource {
 
 // ─── graph ───────────────────────────────────────────────────────────────────
 
+/// Which capture a graph node came out of.
+///
+/// The graph could not connect anything across documents without this. Edges are
+/// written by the compile agent and only between nodes that one compile
+/// established, so nothing ever linked two saves — 68 nodes came out as 28
+/// disconnected components. Recording where each node was seen is what makes
+/// "these two concepts keep appearing together" answerable at all.
+///
+/// Mirrors `wiki_page_sources`, deliberately: same shape, same composite key, so
+/// there is no second pattern to learn.
+model GraphNodeSource {
+  nodeId      String   @map("node_id") @db.Uuid
+  rawItemId   String   @map("raw_item_id") @db.Uuid
+  firstSeenAt DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+
+  node    GraphNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  rawItem RawItem   @relation(fields: [rawItemId], references: [id], onDelete: Cascade)
+
+  @@id([nodeId, rawItemId])
+  @@index([rawItemId], map: "graph_node_sources_item_idx")
+  @@map("graph_node_sources")
+}
+
 model GraphNode {
   id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId String  @map("workspace_id")
@@ -312,6 +336,14 @@ model GraphNode {
   /// how much saved content touches this topic; drives node radius (PRD §6.4)
   weight Int @default(1)
 
+  /// Which cluster Louvain put this node in, or null before the first run.
+  ///
+  /// A plain integer rather than a table: a community has no identity of its own
+  /// beyond "these nodes group together", and the number is reassigned wholesale
+  /// on every detection run. Anything durable hung off it would be wrong by the
+  /// next save.
+  community Int?
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
@@ -319,6 +351,7 @@ model GraphNode {
   outgoingEdges GraphEdge[]     @relation("EdgeSource")
   incomingEdges GraphEdge[]     @relation("EdgeTarget")
   gaps          KnowledgeGap[]
+  sources       GraphNodeSource[]
 
   /// One node per concept per WORKSPACE. This is what lets an edge join a page
   /// in one wiki to a page in another.
@@ -528,4 +561,41 @@ model AiUsageEvent {
   @@map("ai_usage_events")
 
   @@schema("kc")
+}
+
+/// A cluster Louvain found, and what it is about.
+///
+/// Keyed by a fingerprint of its membership rather than by the community number.
+/// The numbers are reassigned on every detection run — cluster 3 today is a
+/// different set of nodes tomorrow — so a summary stored against a number would
+/// quietly end up describing something else. The fingerprint is what makes a
+/// summary reusable: unchanged membership means the paragraph still holds, and a
+/// model call is skipped.
+model GraphCommunity {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String @map("workspace_id")
+
+  /// sha256 of the sorted member node ids. Stable across renumbering.
+  fingerprint String
+
+  /// The number this cluster currently carries, for joining to graph_nodes.
+  /// Rewritten on every run; never use it to identify a cluster over time.
+  community Int
+
+  /// A few words a reader would recognise, and a couple of sentences on what
+  /// the cluster covers. Null until a summary has been generated.
+  title   String?
+  summary String?
+
+  nodeCount Int @default(0) @map("node_count")
+  pageCount Int @default(0) @map("page_count")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  /// When the prose was written. Null while only the membership is known.
+  summarisedAt DateTime? @map("summarised_at") @db.Timestamptz(6)
+
+  @@unique([workspaceId, fingerprint], map: "graph_communities_workspace_fingerprint_key")
+  @@index([workspaceId, community], map: "graph_communities_workspace_community_idx")
+  @@map("graph_communities")
 }

@@ -1,11 +1,16 @@
 {
   "name": "kc",
   "private": true,
+  "version": "0.1.0",
+  "description": "Compile everything you read into a self-organizing wiki and topic graph.",
   "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -14,10 +19,24 @@
     "dev:client": "turbo run dev -F client",
     "dev:api": "turbo run dev -F api",
     "dev:agent": "turbo run dev -F agent",
+    "dev:clean": "node scripts/dev-clean.mjs",
     "db:push": "turbo run db:push -F @kc/db",
     "db:studio": "turbo run db:studio -F @kc/db",
     "db:generate": "turbo run db:generate -F @kc/db",
-    "db:migrate": "turbo run db:migrate -F @kc/db",
+    "db:up": "node scripts/db-up.mjs",
+    "db:migrate": "node scripts/migrate.mjs deploy",
+    "db:migrate:new": "node scripts/migrate.mjs new",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "api:test": "cd apps/api && uv run pytest",
+    "seed": "cd apps/api && uv run python -m app.seed",
+    "setup": "pnpm install && pnpm db:up && pnpm db:migrate && cd apps/api && uv sync --extra dev --extra local-embeddings",
+    "test:ts": "turbo run test",
+    "test:scripts": "node --test scripts/ apps/extension/",
+    "test": "pnpm test:ts && pnpm test:scripts && pnpm api:test",
+    "ccloud": "node scripts/ccloud.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "pack:extension": "node scripts/pack-extension.mjs",
     "check": "biome check --write ."
   },
   "packageManager": "pnpm@9.5.0",
