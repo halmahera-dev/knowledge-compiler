@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from ..config import get_settings
-from ..deps import DbDep, EmbedderDep, ScopeDep
-from ..ratelimit import check_hourly
-from ..schemas import CopilotSearchResponse, RetrievedClaimOut, ThemeOut
-from ..services.communities import overview
-from ..services.retrieval import DEFAULT_LIMIT, search_claims
+from app.api.deps import DbDep, EmbedderDep, ScopeDep
+from app.core.config import get_settings
+from app.core.ratelimit import check_hourly
+from app.schemas import CopilotSearchResponse, RetrievedClaimOut, ThemeOut
+from app.services.communities import overview
+from app.services.retrieval import DEFAULT_LIMIT, search_claims
 
 router = APIRouter(prefix="/api/v1/copilot", tags=["copilot"])
 

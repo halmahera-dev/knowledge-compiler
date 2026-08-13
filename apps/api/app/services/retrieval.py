@@ -25,9 +25,9 @@ from dataclasses import dataclass
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import ClaimSource, RawItem, WikiClaim, WikiPage
-from ..scoping import Scope
-from .matching import to_vector_literal
+from app.core.scoping import Scope
+from app.models import ClaimSource, RawItem, WikiClaim, WikiPage
+from app.services.matching import to_vector_literal
 
 #: Claims returned per query. Enough for the model to synthesise across sources,
 #: few enough that the prompt stays readable and cheap.

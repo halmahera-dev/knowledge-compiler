@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from app import ratelimit
-from app.ratelimit import RateLimitExceeded, check
-from app.scoping import Scope
+from app.core import ratelimit
+from app.core.ratelimit import RateLimitExceeded, check
+from app.core.scoping import Scope
 
 
 class FakeRedis:

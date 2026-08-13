@@ -14,7 +14,7 @@ import structlog
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 
-from .config import get_settings
+from app.core.config import get_settings
 
 log = structlog.get_logger(__name__)
 
@@ -62,8 +62,8 @@ async def enqueue_compile(*, run_id: uuid.UUID, raw_item_id: uuid.UUID, workspac
         )
     except Exception as exc:
         log.error("enqueue_failed", run_id=str(run_id), error=str(exc))
-        from .db import session_scope
-        from .models import CompileRun
+        from app.core.db import session_scope
+        from app.models import CompileRun
 
         async with session_scope() as db:
             run = await db.get(CompileRun, run_id)

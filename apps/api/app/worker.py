@@ -18,12 +18,12 @@ from typing import Any
 import httpx
 import structlog
 
-from . import events
-from .config import get_settings
-from .db import dispose_engine, session_scope
-from .main import configure_logging
-from .models import CompileRun, RawItem
-from .queue import redis_settings
+from app.core import events
+from app.core.config import get_settings
+from app.core.db import dispose_engine, session_scope
+from app.core.queue import redis_settings
+from app.main import configure_logging
+from app.models import CompileRun, RawItem
 
 log = structlog.get_logger(__name__)
 

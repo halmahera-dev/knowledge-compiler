@@ -18,7 +18,7 @@ from typing import Any, TypeVar
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import (
+from app.models import (
     AiUsageEvent,
     ChatMessage,
     ChatSession,

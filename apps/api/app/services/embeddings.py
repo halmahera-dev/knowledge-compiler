@@ -29,7 +29,7 @@ from typing import Protocol
 
 import structlog
 
-from .config import Settings
+from app.core.config import Settings
 
 log = structlog.get_logger(__name__)
 

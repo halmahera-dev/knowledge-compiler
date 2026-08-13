@@ -22,8 +22,8 @@ import time
 import structlog
 from fastapi import HTTPException, status
 
-from .events import get_redis
-from .scoping import Scope
+from app.core.events import get_redis
+from app.core.scoping import Scope
 
 log = structlog.get_logger(__name__)
 

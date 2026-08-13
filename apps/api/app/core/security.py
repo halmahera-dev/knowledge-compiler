@@ -22,7 +22,7 @@ import jwt
 import structlog
 from jwt import PyJWKClient
 
-from .config import Settings, get_settings
+from app.core.config import Settings, get_settings
 
 log = structlog.get_logger(__name__)
 
@@ -50,8 +50,9 @@ class Principal:
         return False
 
 
-#: Roles ordered least to most privileged. Mirrors apps/web/src/lib/permissions.ts —
-#: the two must agree, and this side is the one that actually enforces.
+#: Roles ordered least to most privileged. Better Auth's organization plugin
+#: names the same four; the two must agree, and this side is the one that
+#: actually enforces.
 ROLE_ORDER = ("viewer", "member", "admin", "owner")
 
 

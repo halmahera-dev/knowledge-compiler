@@ -12,7 +12,7 @@ import typing
 
 import pytest
 
-from app.routers.runs import RETRYABLE_STATUSES
+from app.api.routers.runs import RETRYABLE_STATUSES
 from app.schemas import RunStatus
 
 ALL_STATUSES = frozenset(typing.get_args(RunStatus))

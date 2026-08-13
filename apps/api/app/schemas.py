@@ -521,6 +521,12 @@ class ChatSessionDetailOut(ChatSessionOut):
     messages: list[ChatMessageOut] = Field(default_factory=list)
 
 
+class RenameSessionRequest(Wire):
+    """A title the reader chose, replacing the one derived from their question."""
+
+    title: str = Field(min_length=1, max_length=120)
+
+
 class CreateSessionRequest(Wire):
     #: Optional: a session created from the composer names itself from the first
     #: question instead.
@@ -548,10 +554,14 @@ class AppendTurnRequest(Wire):
 class UsageRecordRequest(Wire):
     """One model call, reported by the agent after it returns.
 
-    The workspace is deliberately absent. It is derived from ``run_id`` or
-    ``chat_session_id`` on the server, for the same reason every other internal
-    endpoint does it that way: a caller that can name its own workspace can bill
-    or read someone else's.
+    The workspace is deliberately absent as an *attribution*. It is derived from
+    ``run_id`` or ``chat_session_id`` on the server, for the same reason every
+    other internal endpoint does it that way: a caller that can name its own
+    workspace can bill or read someone else's.
+
+    ``workspace_id`` is the caller's own workspace, taken from its signed token,
+    and is used only to refuse a mismatch. Holding a session id from another
+    workspace is then not enough to file spend against it.
     """
 
     service: Literal["agent", "api"] = "agent"
@@ -566,6 +576,8 @@ class UsageRecordRequest(Wire):
     error: str | None = None
     run_id: uuid.UUID | None = None
     chat_session_id: uuid.UUID | None = None
+    #: Checked against the derived workspace, never used in place of it.
+    workspace_id: str | None = None
 
     @model_validator(mode="after")
     def _needs_an_owner(self) -> UsageRecordRequest:
@@ -598,6 +610,8 @@ class UsageEventOut(Wire):
 class UsageByOperation(Wire):
     operation: str
     calls: int
+    input_tokens: int
+    output_tokens: int
     total_tokens: int
     estimated_usd: float | None
 

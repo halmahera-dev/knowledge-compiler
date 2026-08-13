@@ -39,7 +39,7 @@ dev = [
 
 [project.scripts]
 kc-api = "app.main:main"
-kc-seed = "app.seed:main"
+kc-seed = "app.scripts.seed:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -7,8 +7,9 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 
-from ..deps import DbDep, MemberScope, ScopeDep
-from ..models import (
+from app.api.deps import DbDep, MemberScope, ScopeDep
+from app.core.scoping import Scope
+from app.models import (
     ClaimSource,
     GraphEdge,
     GraphNode,
@@ -18,7 +19,7 @@ from ..models import (
     WikiPageRevision,
     WikiPageSource,
 )
-from ..schemas import (
+from app.schemas import (
     ClaimOut,
     ClaimSourceOut,
     PageDetailOut,
@@ -28,8 +29,7 @@ from ..schemas import (
     RevisionMetaOut,
     SectionOut,
 )
-from ..scoping import Scope
-from ..services.compile import CompileError, revert_page
+from app.services.compile import CompileError, revert_page
 
 router = APIRouter(prefix="/api/v1/pages", tags=["wiki"])
 

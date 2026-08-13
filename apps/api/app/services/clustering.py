@@ -37,8 +37,8 @@ from networkx.algorithms.community import louvain_communities
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import GraphCommunity, GraphEdge, GraphNode, GraphNodeSource
-from ..scoping import Scope
+from app.core.scoping import Scope
+from app.models import GraphCommunity, GraphEdge, GraphNode, GraphNodeSource
 
 log = structlog.get_logger(__name__)
 

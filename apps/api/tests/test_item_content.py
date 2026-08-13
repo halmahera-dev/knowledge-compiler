@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 
-from app.routers import internal, items
+from app.api.routers import internal, items
 from app.schemas import RawItemContent, RawItemOut
 
 

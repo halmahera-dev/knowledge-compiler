@@ -7,8 +7,8 @@ import math
 
 import pytest
 
-from app.config import Settings
-from app.embeddings import (
+from app.core.config import Settings
+from app.services.embeddings import (
     CohereEmbedProvider,
     EmbeddingError,
     LocalProvider,
@@ -168,7 +168,7 @@ class TestCohereResponseParsing:
 class TestProviderResolution:
     async def test_takes_the_first_provider_that_answers(self, monkeypatch):
         first, second = StubProvider("first"), StubProvider("second")
-        monkeypatch.setattr("app.embeddings.build_candidates", lambda _s: [first, second])
+        monkeypatch.setattr("app.services.embeddings.build_candidates", lambda _s: [first, second])
 
         selected = await resolve_provider(Settings())
 
@@ -178,7 +178,9 @@ class TestProviderResolution:
 
     async def test_falls_through_to_the_next_when_one_fails(self, monkeypatch):
         broken, working = StubProvider("broken", fail=True), StubProvider("working")
-        monkeypatch.setattr("app.embeddings.build_candidates", lambda _s: [broken, working])
+        monkeypatch.setattr(
+            "app.services.embeddings.build_candidates", lambda _s: [broken, working]
+        )
 
         assert (await resolve_provider(Settings())).name == "working"
 
@@ -186,13 +188,14 @@ class TestProviderResolution:
         # A wrong-width vector would fail at insert time; catching it during the
         # probe turns a per-save crash into one clear startup message.
         wrong, good = StubProvider("wrong", wrong_dim=True), StubProvider("good")
-        monkeypatch.setattr("app.embeddings.build_candidates", lambda _s: [wrong, good])
+        monkeypatch.setattr("app.services.embeddings.build_candidates", lambda _s: [wrong, good])
 
         assert (await resolve_provider(Settings())).name == "good"
 
     async def test_raises_when_nothing_is_reachable(self, monkeypatch):
         monkeypatch.setattr(
-            "app.embeddings.build_candidates", lambda _s: [StubProvider("broken", fail=True)]
+            "app.services.embeddings.build_candidates",
+            lambda _s: [StubProvider("broken", fail=True)],
         )
         with pytest.raises(EmbeddingError, match="No embedding provider is reachable"):
             await resolve_provider(Settings())

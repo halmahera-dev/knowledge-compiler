@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.extraction import (
+from app.services.extraction import (
     FetchError,
     _assert_public_url,
     content_hash,

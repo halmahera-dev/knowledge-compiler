@@ -30,7 +30,7 @@ import logging
 import re
 from decimal import Decimal
 
-from .config import get_settings
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 

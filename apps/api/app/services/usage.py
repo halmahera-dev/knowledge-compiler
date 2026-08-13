@@ -24,8 +24,8 @@ from decimal import Decimal
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import AiUsageEvent
-from ..pricing import estimate_usd, tokens_from_text
+from app.core.pricing import estimate_usd, tokens_from_text
+from app.models import AiUsageEvent
 
 log = structlog.get_logger(__name__)
 

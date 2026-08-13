@@ -2,8 +2,8 @@
 
 Run with::
 
-    cd apps/api && uv run python -m app.backfill_usage          # report only
-    cd apps/api && uv run python -m app.backfill_usage --write  # insert
+    cd apps/api && uv run python -m app.scripts.backfill_usage          # report only
+    cd apps/api && uv run python -m app.scripts.backfill_usage --write  # insert
 
 **Read this before trusting the numbers it produces.** Nothing recorded token
 counts before the `ai_usage_events` table existed, and no provider will tell us
@@ -36,10 +36,10 @@ from collections import Counter
 
 from sqlalchemy import func, select
 
-from .db import session_scope
-from .models import AiUsageEvent, ChatMessage, ChatSession, CompileRun, RawItem
-from .pricing import tokens_from_text
-from .services.usage import AGENT, API, record
+from app.core.db import session_scope
+from app.core.pricing import tokens_from_text
+from app.models import AiUsageEvent, ChatMessage, ChatSession, CompileRun, RawItem
+from app.services.usage import AGENT, API, record
 
 #: The reasoning steps a compile runs, and roughly how much of the source text
 #: each one sees. Extract reads the whole document; the later steps work from

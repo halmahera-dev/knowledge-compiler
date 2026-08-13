@@ -16,14 +16,14 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..embeddings import EmbeddingProvider, build_embedding_input
-from ..extraction import content_hash
-from ..models import CompileRun, RawItem
-from ..pricing import tokens_from_text
-from ..queue import enqueue_compile
-from ..scoping import Scope
-from . import usage
-from .wikis import resolve_wiki
+from app.core.pricing import tokens_from_text
+from app.core.queue import enqueue_compile
+from app.core.scoping import Scope
+from app.models import CompileRun, RawItem
+from app.services import usage
+from app.services.embeddings import EmbeddingProvider, build_embedding_input
+from app.services.extraction import content_hash
+from app.services.wikis import resolve_wiki
 
 log = structlog.get_logger(__name__)
 

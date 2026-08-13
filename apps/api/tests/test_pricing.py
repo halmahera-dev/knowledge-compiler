@@ -16,8 +16,8 @@ from decimal import Decimal
 
 import pytest
 
-from app import pricing
-from app.config import get_settings
+from app.core import pricing
+from app.core.config import get_settings
 
 
 @pytest.fixture

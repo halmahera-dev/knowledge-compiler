@@ -17,11 +17,10 @@ import structlog
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from .. import events
-from ..deps import DbDep, EmbedderDep, InternalAuth, scope_from_item, scope_from_run
-from ..embeddings import build_embedding_input
-from ..models import ChatSession, CompileRun, RawItem, WikiClaim, WikiPage, WikiPageRevision
-from ..schemas import (
+from app.api.deps import DbDep, EmbedderDep, InternalAuth, scope_from_item, scope_from_run
+from app.core import events
+from app.models import ChatSession, CompileRun, RawItem, WikiClaim, WikiPage, WikiPageRevision
+from app.schemas import (
     ApplyCompileRequest,
     CommunityMaterialOut,
     CommunitySummaryRequest,
@@ -40,9 +39,10 @@ from ..schemas import (
     SectionOut,
     UsageRecordRequest,
 )
-from ..services import communities, usage
-from ..services.compile import CompileError, apply_compile
-from ..services.matching import find_similar_pages, resolve_threshold
+from app.services import communities, usage
+from app.services.compile import CompileError, apply_compile
+from app.services.embeddings import build_embedding_input
+from app.services.matching import find_similar_pages, resolve_threshold
 
 router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[InternalAuth])
 log = structlog.get_logger(__name__)
@@ -254,6 +254,15 @@ async def record_usage(payload: UsageRecordRequest, db: DbDep) -> None:
     if workspace_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="no workspace for this usage"
+        )
+
+    # The caller told us which workspace its token was minted for. It does not
+    # get to choose the workspace, only to be refused when the run or session it
+    # named belongs to a different one — otherwise a leaked session id would be
+    # enough to file spend against somebody else's ledger.
+    if payload.workspace_id is not None and payload.workspace_id != workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="usage does not belong to this workspace"
         )
 
     await usage.record(

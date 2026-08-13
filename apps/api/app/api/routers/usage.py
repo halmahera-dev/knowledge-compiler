@@ -17,15 +17,15 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 from sqlalchemy import BigInteger, cast, func
 
-from ..deps import DbDep, ScopeDep
-from ..models import AiUsageEvent
-from ..schemas import (
+from app.api.deps import DbDep, ScopeDep
+from app.models import AiUsageEvent
+from app.schemas import (
     UsageByOperation,
     UsageEventOut,
     UsageListOut,
     UsageSummary,
 )
-from ..services.usage import as_usd
+from app.services.usage import as_usd
 
 router = APIRouter(prefix="/api/v1/ai-usage", tags=["ai-usage"])
 
@@ -106,6 +106,8 @@ async def list_usage(
                 scope.select(AiUsageEvent).with_only_columns(
                     AiUsageEvent.operation,
                     func.count(),
+                    _sum_int(AiUsageEvent.input_tokens),
+                    _sum_int(AiUsageEvent.output_tokens),
                     _sum_int(AiUsageEvent.total_tokens),
                     func.sum(AiUsageEvent.estimated_usd),
                 )
@@ -132,10 +134,12 @@ async def list_usage(
                 UsageByOperation(
                     operation=op,
                     calls=op_calls,
+                    input_tokens=op_input,
+                    output_tokens=op_output,
                     total_tokens=op_tokens,
                     estimated_usd=as_usd(op_usd),
                 )
-                for op, op_calls, op_tokens, op_usd in by_operation
+                for op, op_calls, op_input, op_output, op_tokens, op_usd in by_operation
             ],
         ),
     )

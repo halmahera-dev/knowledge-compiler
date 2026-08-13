@@ -19,7 +19,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from app.extraction import FetchError, _get_following_redirects
+from app.services.extraction import FetchError, _get_following_redirects
 
 
 class RecordingClient:

@@ -10,8 +10,8 @@ from __future__ import annotations
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import get_settings
-from ..schemas import PageCandidate
+from app.core.config import get_settings
+from app.schemas import PageCandidate
 
 # `1 - (a <=> b)` converts cosine distance into the similarity users reason about.
 # The vector literal is bound as text and cast, because asyncpg has no VECTOR codec.

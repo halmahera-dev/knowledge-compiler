@@ -35,7 +35,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import UserDefinedType
 
-from .config import DB_SCHEMA, EMBEDDING_DIM
+from app.core.config import DB_SCHEMA, EMBEDDING_DIM
 
 
 class Base(DeclarativeBase):

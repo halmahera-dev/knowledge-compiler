@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import structlog
 
-from ..config import Settings, get_settings
+from app.core.config import Settings, get_settings
 
 log = structlog.get_logger(__name__)
 

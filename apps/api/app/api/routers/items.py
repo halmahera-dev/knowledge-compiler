@@ -19,17 +19,17 @@ import structlog
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 
-from ..config import get_settings
-from ..deps import DbDep, EmbedderDep, MemberScope, ScopeDep
-from ..extraction import FetchError, derive_title, fetch_readable, normalize_content
-from ..models import RawItem, WikiPage, WikiPageSource
-from ..queue import enqueue_compile
-from ..ratelimit import check_hourly
-from ..schemas import CreateItemRequest, CreateItemResponse, DuplicateOf, RawItemOut
-from ..services.capture import SavedItem, save_and_queue
-from ..services.chunking import chunk_text, chunk_title
-from ..services.pdf import PdfError, extract_pdf
-from ..services.storage import get_object_store
+from app.api.deps import DbDep, EmbedderDep, MemberScope, ScopeDep
+from app.core.config import get_settings
+from app.core.queue import enqueue_compile
+from app.core.ratelimit import check_hourly
+from app.models import RawItem, WikiPage, WikiPageSource
+from app.schemas import CreateItemRequest, CreateItemResponse, DuplicateOf, RawItemOut
+from app.services.capture import SavedItem, save_and_queue
+from app.services.chunking import chunk_text, chunk_title
+from app.services.extraction import FetchError, derive_title, fetch_readable, normalize_content
+from app.services.pdf import PdfError, extract_pdf
+from app.services.storage import get_object_store
 
 router = APIRouter(prefix="/api/v1/items", tags=["capture"])
 log = structlog.get_logger(__name__)

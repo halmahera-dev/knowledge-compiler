@@ -11,14 +11,14 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
-from .. import events
-from ..auth import AuthError, get_verifier
-from ..config import get_settings
-from ..deps import DbDep, MemberScope, ScopeDep, SettingsDep
-from ..models import CompileRun, RawItem
-from ..queue import enqueue_compile
-from ..ratelimit import check_hourly
-from ..schemas import GapOut, RunOut
+from app.api.deps import DbDep, MemberScope, ScopeDep, SettingsDep
+from app.core import events
+from app.core.config import get_settings
+from app.core.queue import enqueue_compile
+from app.core.ratelimit import check_hourly
+from app.core.security import AuthError, get_verifier
+from app.models import CompileRun, RawItem
+from app.schemas import GapOut, RunOut
 
 router = APIRouter(prefix="/api/v1", tags=["runs"])
 
@@ -215,7 +215,7 @@ async def stream(
 @router.get("/gaps", response_model=list[GapOut])
 async def list_gaps(db: DbDep, scope: ScopeDep, limit: int = Query(50, ge=1, le=200)):
     """Open questions the knowledge base cannot yet answer."""
-    from ..models import GraphNode, KnowledgeGap, WikiPage
+    from app.models import GraphNode, KnowledgeGap, WikiPage
 
     rows = (
         await db.execute(
@@ -244,7 +244,7 @@ async def list_gaps(db: DbDep, scope: ScopeDep, limit: int = Query(50, ge=1, le=
 
 @router.post("/gaps/{gap_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 async def dismiss_gap(gap_id: uuid.UUID, db: DbDep, scope: ScopeDep) -> None:
-    from ..models import KnowledgeGap
+    from app.models import KnowledgeGap
 
     gap = await db.get(KnowledgeGap, gap_id)
     if gap is None or gap.workspace_id != scope.workspace_id:

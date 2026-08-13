@@ -8,12 +8,12 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .auth import AuthError, Principal, get_verifier, role_at_least
-from .config import Settings, get_settings
-from .db import get_db
-from .embeddings import EmbeddingProvider
-from .models import CompileRun, RawItem, WikiPage
-from .scoping import Scope
+from app.core.config import Settings, get_settings
+from app.core.db import get_db
+from app.core.scoping import Scope
+from app.core.security import AuthError, Principal, get_verifier, role_at_least
+from app.models import CompileRun, RawItem, WikiPage
+from app.services.embeddings import EmbeddingProvider
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -85,9 +85,8 @@ ScopeDep = Annotated[Scope, Depends(current_scope)]
 def require_role(minimum: str):
     """Dependency factory gating an endpoint on a workspace role.
 
-    Mirrors the roles in apps/web/src/lib/permissions.ts. That file decides what
-    the UI offers; this decides what actually happens, which is the boundary that
-    matters.
+    The client decides what the UI offers; this decides what actually happens,
+    which is the boundary that matters.
     """
 
     def guard(scope: ScopeDep) -> Scope:

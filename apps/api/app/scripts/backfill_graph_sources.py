@@ -2,8 +2,8 @@
 
 Run with::
 
-    cd apps/api && uv run python -m app.backfill_graph_sources          # report only
-    cd apps/api && uv run python -m app.backfill_graph_sources --write  # insert
+    cd apps/api && uv run python -m app.scripts.backfill_graph_sources          # report only
+    cd apps/api && uv run python -m app.scripts.backfill_graph_sources --write  # insert
 
 `graph_node_sources` is what lets the graph connect one save to another. Nodes
 created before that table existed have no rows in it, so on existing data the
@@ -39,8 +39,8 @@ from collections import Counter, defaultdict
 
 from sqlalchemy import select
 
-from .db import session_scope
-from .models import CompileRun, GraphEdge, GraphNode, GraphNodeSource, WikiPageSource
+from app.core.db import session_scope
+from app.models import CompileRun, GraphEdge, GraphNode, GraphNodeSource, WikiPageSource
 
 
 async def backfill(write: bool) -> Counter:

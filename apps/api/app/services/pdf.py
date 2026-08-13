@@ -128,7 +128,7 @@ def extract_pdf(data: bytes) -> ExtractedPdf:
 
     import pypdfium2 as pdfium
 
-    from ..extraction import normalize_content
+    from app.services.extraction import normalize_content
 
     try:
         document = pdfium.PdfDocument(io.BytesIO(data))

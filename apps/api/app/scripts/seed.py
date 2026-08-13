@@ -22,7 +22,7 @@ import sys
 
 import httpx
 
-from .config import get_settings
+from app.core.config import get_settings
 
 # (title, body). Bodies are written as prose a person might actually clip.
 SOURCES: list[tuple[str, str]] = [

@@ -29,8 +29,8 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import GraphCommunity, GraphNode, WikiPage
-from ..scoping import Scope
+from app.core.scoping import Scope
+from app.models import GraphCommunity, GraphNode, WikiPage
 
 log = structlog.get_logger(__name__)
 

@@ -19,8 +19,8 @@ import structlog
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..extraction import slugify
-from ..models import (
+from app.core.scoping import Scope
+from app.models import (
     ClaimSource,
     CompileRun,
     GraphEdge,
@@ -33,16 +33,16 @@ from ..models import (
     WikiPageRevision,
     WikiPageSource,
 )
-from ..schemas import (
+from app.schemas import (
     ApplyCompileRequest,
     CompileDiff,
     CompileDiffEdge,
     CompileDiffPage,
 )
-from ..scoping import Scope
-from .anchoring import locate_quote
-from .clustering import detect_communities
-from .matching import find_similar_pages
+from app.services.anchoring import locate_quote
+from app.services.clustering import detect_communities
+from app.services.extraction import slugify
+from app.services.matching import find_similar_pages
 
 log = structlog.get_logger(__name__)
 
@@ -51,17 +51,44 @@ class CompileError(RuntimeError):
     pass
 
 
+#: Slugs the web app already serves as static routes.
+#:
+#: Compiled pages live at `/{slug}`, and Next resolves a static segment before a
+#: dynamic one — so a page titled "Capture" would take the slug `capture` and
+#: then be unreachable forever, with nothing to indicate why. These are claimed
+#: up front and suffixed instead. "Graph", "Gaps" and "Capture" are all plausible
+#: titles for a knowledge base about this kind of software.
+RESERVED_SLUGS = frozenset(
+    {
+        "agent",
+        "ai-logs",
+        "api",
+        "capture",
+        "gaps",
+        "graph",
+        "landing",
+        "login",
+        "register",
+        "wiki",
+        "workspace",
+    }
+)
+
+
 async def _unique_slug(db: AsyncSession, wiki_id: uuid.UUID, desired: str) -> str:
     """A slug free within this wiki, suffixing on collision."""
     base = slugify(desired)
-    slug = base
-    for attempt in range(2, 50):
+    # A reserved word is treated exactly like a taken one: the bare form is never
+    # offered, so the search starts at the first suffix.
+    candidates = [base] if base not in RESERVED_SLUGS else []
+    candidates += [f"{base}-{n}" for n in range(2, 50)]
+
+    for slug in candidates:
         existing = await db.scalar(
             select(WikiPage.id).where(WikiPage.wiki_id == wiki_id, WikiPage.slug == slug)
         )
         if existing is None:
             return slug
-        slug = f"{base}-{attempt}"
     return f"{base}-{uuid.uuid4().hex[:6]}"
 
 

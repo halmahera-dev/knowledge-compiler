@@ -114,7 +114,10 @@ class Settings(BaseSettings):
     # ── auth ─────────────────────────────────────────────────────────────────
     # Where Better Auth runs. Its JWKS lives at {auth_base_url}/api/auth/jwks and
     # is also the `iss` every token must carry, so this doubles as the issuer.
-    auth_base_url: str = "http://localhost:5173"
+    # 3000, not 5173: the browser extension's manifest pins that port, and
+    # production publishes the client there too. A default that disagreed with
+    # both meant a token whose `iss` the API then refused.
+    auth_base_url: str = "http://localhost:3000"
     # Better Auth's jwt plugin defaults `aud` to its own baseURL unless an
     # explicit audience is configured — nothing configures one, so this must
     # default the same way or every token fails InvalidAudienceError.

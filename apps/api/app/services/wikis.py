@@ -14,9 +14,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..extraction import slugify
-from ..models import Wiki
-from ..scoping import Scope
+from app.core.scoping import Scope
+from app.models import Wiki
+from app.services.extraction import slugify
 
 DEFAULT_WIKI_NAME = "Knowledge base"
 DEFAULT_WIKI_SLUG = "knowledge-base"

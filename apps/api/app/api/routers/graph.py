@@ -5,9 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
-from ..deps import DbDep, ScopeDep
-from ..models import GraphEdge, GraphNode, WikiPage
-from ..schemas import (
+from app.api.deps import DbDep, ScopeDep
+from app.models import GraphEdge, GraphNode, WikiPage
+from app.schemas import (
     CommunitiesOut,
     CommunityOut,
     DerivedEdgeOut,
@@ -15,8 +15,8 @@ from ..schemas import (
     GraphNodeOut,
     GraphOut,
 )
-from ..services.clustering import derived_edges
-from ..services.communities import overview
+from app.services.clustering import derived_edges
+from app.services.communities import overview
 
 router = APIRouter(prefix="/api/v1/graph", tags=["graph"])
 

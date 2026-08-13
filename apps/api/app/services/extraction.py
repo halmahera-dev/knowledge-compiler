@@ -17,7 +17,7 @@ import httpx
 import structlog
 import trafilatura
 
-from .config import get_settings
+from app.core.config import get_settings
 
 log = structlog.get_logger(__name__)
 

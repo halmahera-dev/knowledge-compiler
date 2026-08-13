@@ -17,14 +17,15 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import case, delete, func, select
 
-from ..deps import DbDep, MemberScope, ScopeDep
-from ..models import ChatMessage, ChatSession
-from ..schemas import (
+from app.api.deps import DbDep, MemberScope, ScopeDep
+from app.models import ChatMessage, ChatSession
+from app.schemas import (
     AppendTurnRequest,
     ChatMessageOut,
     ChatSessionDetailOut,
     ChatSessionOut,
     CreateSessionRequest,
+    RenameSessionRequest,
 )
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
@@ -200,6 +201,40 @@ async def append_turn(
 
     await db.commit()
     return await get_session(session_id, db, scope)
+
+
+@router.patch("/sessions/{session_id}", response_model=ChatSessionOut)
+async def rename_session(
+    session_id: uuid.UUID, payload: RenameSessionRequest, db: DbDep, scope: MemberScope
+) -> ChatSessionOut:
+    """Give a conversation a title of the reader's own.
+
+    The derived title names a thread after the question that opened it, which is
+    right for finding it again and wrong once a thread has wandered somewhere
+    else. Renaming is the only way back from that, and there was no way to do it.
+
+    `updated_at` is deliberately left alone: the list is ordered by it, and a
+    rename is not activity — reordering the list under someone who is tidying it
+    would move the row they are working on.
+    """
+    session = await _load_session(db, session_id, scope)
+    session.title = payload.title.strip()
+    await db.commit()
+
+    count = await db.scalar(
+        select(func.count()).select_from(ChatMessage).where(
+            ChatMessage.session_id == session.id
+        )
+    )
+    return ChatSessionOut.model_validate(
+        {
+            "id": session.id,
+            "title": session.title,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "message_count": count or 0,
+        }
+    )
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

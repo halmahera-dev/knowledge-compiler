@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.auth import ROLE_ORDER, Principal, role_at_least
+from app.core.scoping import DERIVED_OWNERSHIP, WORKSPACE_OWNED, Scope, ScopeError
+from app.core.security import ROLE_ORDER, Principal, role_at_least
 from app.models import (
     ClaimSource,
     CompileRun,
@@ -23,7 +24,6 @@ from app.models import (
     WikiPage,
     WikiPageRevision,
 )
-from app.scoping import DERIVED_OWNERSHIP, WORKSPACE_OWNED, Scope, ScopeError
 
 
 class Row:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import DEV_INTERNAL_TOKEN, Settings, to_sqlalchemy_url
+from app.core.config import DEV_INTERNAL_TOKEN, Settings, to_sqlalchemy_url
 
 
 class TestSqlAlchemyUrlRewrite:

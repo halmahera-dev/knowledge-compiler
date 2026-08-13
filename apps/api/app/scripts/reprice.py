@@ -2,8 +2,8 @@
 
 Run with::
 
-    cd apps/api && uv run python -m app.reprice          # report only
-    cd apps/api && uv run python -m app.reprice --write  # apply
+    cd apps/api && uv run python -m app.scripts.reprice          # report only
+    cd apps/api && uv run python -m app.scripts.reprice --write  # apply
 
 Cost is worked out when a usage row is written and stored on the row, not
 computed on the way out. That is deliberate — a rate is a fact about a moment,
@@ -18,7 +18,7 @@ there is no rate to look up and they price as unknown.
 
 They can be adopted, but only by saying so out loud::
 
-    uv run python -m app.reprice --assume-agent-model zai.glm-5 --write
+    uv run python -m app.scripts.reprice --assume-agent-model zai.glm-5 --write
 
 Every one of them was made by the agent, and the agent has a single configured
 model — so in practice they almost certainly all ran on it. Almost certainly is
@@ -36,10 +36,10 @@ from collections import Counter
 
 from sqlalchemy import select
 
-from .db import session_scope
-from .models import AiUsageEvent
-from .pricing import PRICES, UNKNOWN_MODEL, estimate_usd
-from .services.usage import AGENT
+from app.core.db import session_scope
+from app.core.pricing import PRICES, UNKNOWN_MODEL, estimate_usd
+from app.models import AiUsageEvent
+from app.services.usage import AGENT
 
 #: Appended to an adopted model id, so the assumption survives on screen. The
 #: fuzzy matcher ignores punctuation, so the configured rate still applies.

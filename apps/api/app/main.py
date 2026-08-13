@@ -9,12 +9,12 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import get_settings
-from .db import dispose_engine
-from .embeddings import EmbeddingError, resolve_provider
-from .events import close_redis
-from .queue import close_pool
-from .routers import chat, copilot, graph, internal, items, pages, runs, usage
+from app.api.routers import chat, copilot, graph, internal, items, pages, runs, usage
+from app.core.config import get_settings
+from app.core.db import dispose_engine
+from app.core.events import close_redis
+from app.core.queue import close_pool
+from app.services.embeddings import EmbeddingError, resolve_provider
 
 log = structlog.get_logger(__name__)
 
@@ -116,7 +116,7 @@ app.include_router(internal.router)
 @app.get("/health", tags=["meta"])
 async def health() -> dict[str, object]:
     """Liveness plus the two facts most worth knowing when something is wrong."""
-    from .services.matching import resolve_threshold
+    from app.services.matching import resolve_threshold
 
     embedder = getattr(app.state, "embedder", None)
     return {
