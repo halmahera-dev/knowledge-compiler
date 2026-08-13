@@ -10,7 +10,7 @@ import { Link, createFileRoute, notFound, useRouter } from "@tanstack/react-rout
 import { useState } from "react";
 
 import { AlertIcon, QuoteIcon, UndoIcon } from "~/components/icons";
-import { ApiError, api, type Claim, type PageDetail } from "~/lib/api";
+import { ApiError, api, type Claim } from "~/lib/api";
 import { pageTitle } from "~/lib/head";
 import { safeHref, sourceLabel } from "~/lib/url";
 import { requireSession } from "~/lib/guards";

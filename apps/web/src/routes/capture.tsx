@@ -15,7 +15,6 @@ import {
   ApiError,
   api,
   subscribeToCompileEvents,
-  type CaptureType,
   type CompileDiff,
   type Run,
 } from "~/lib/api";

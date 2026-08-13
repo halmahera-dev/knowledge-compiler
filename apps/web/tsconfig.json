@@ -6,8 +6,7 @@
     "types": ["vite/client"],
     "paths": {
       "~/*": ["./src/*"]
-    },
-    "baseUrl": "."
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
   "exclude": ["node_modules", "dist", ".output", ".nitro"]
