@@ -527,9 +527,12 @@ the whole segment migrates against the wrong cluster without complaint.
 
 ```
 apps/
-  web/         TanStack Start app — capture, wiki, graph, gaps (current)
-  client/      Next.js rewrite of apps/web, in progress — see CONTEXT.md and
-               FEATURE_MIGRATION_MAP.md for what has and has not moved over
+  web/         TanStack Start app — capture, wiki, graph, gaps. Kept on disk as
+               a reference but disabled: excluded from the pnpm workspace, so
+               it is not installed, built, or run
+  client/      Next.js rewrite of apps/web, now the active app — see
+               CONTEXT.md and FEATURE_MIGRATION_MAP.md for what has and has
+               not moved over
   api/         FastAPI: storage, embeddings, SSE, agent callbacks
   agent/       Mastra: the five-step compile workflow
   extension/   Manifest V3 clipper, no build step

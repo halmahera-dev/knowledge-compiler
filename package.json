@@ -15,7 +15,6 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
-    "dev:web": "turbo run dev -F web",
     "dev:client": "turbo run dev -F client",
     "dev:api": "turbo run dev -F api",
     "dev:agent": "turbo run dev -F agent",

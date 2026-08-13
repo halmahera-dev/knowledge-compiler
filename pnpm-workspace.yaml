@@ -1,6 +1,9 @@
 packages:
   - apps/*
   - packages/*
+  # apps/web is kept on disk as the pre-migration reference but is not part of
+  # the active workspace — apps/client is the app being built now.
+  - "!apps/web"
 allowBuilds:
   esbuild: true
   "@prisma/engines": true
