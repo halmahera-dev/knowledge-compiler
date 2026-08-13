@@ -12,3 +12,12 @@ export async function listOrganizations() {
 	if (!session) return [];
 	return auth.api.listOrganizations({ headers: await headers() });
 }
+
+/** The workspace this session is scoped to, or null when none is chosen. */
+export async function activeOrganizationId(): Promise<string | null> {
+	const session = await getSession();
+	const value = (
+		session?.session as { activeOrganizationId?: string | null } | undefined
+	)?.activeOrganizationId;
+	return value ?? null;
+}

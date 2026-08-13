@@ -29,7 +29,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const MIGRATIONS_DIR = join(ROOT, "prisma", "migrations");
+// The schema and its migrations moved into @kc/db when apps/web was retired.
+// A second copy lived at the repository root for a while and drifted: it was
+// regenerated for Postgres + pgvector, losing every CREATE VECTOR INDEX and
+// the schema_locked prelude CockroachDB needs. Only this path is real now.
+const DB_PACKAGE = join(ROOT, "packages", "db");
+const MIGRATIONS_DIR = join(DB_PACKAGE, "prisma", "migrations");
 
 // CockroachDB v25.4+ creates tables with schema_locked = true, which rejects the
 // ALTER TABLE ... ADD CONSTRAINT statements Prisma emits for foreign keys.
@@ -73,7 +78,7 @@ function stripVectorIndexDrops(sql) {
 
 function prisma(args, { capture = false } = {}) {
   const res = spawnSync("npx", ["prisma", ...args], {
-    cwd: ROOT,
+    cwd: DB_PACKAGE,
     encoding: "utf8",
     shell: process.platform === "win32",
     stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
@@ -115,7 +120,7 @@ function authorNew(name) {
       "--from-migrations",
       "prisma/migrations",
       "--to-schema",
-      "prisma/schema.prisma",
+      "prisma/schema",
       "--script",
     ],
     { capture: true },

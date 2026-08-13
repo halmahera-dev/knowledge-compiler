@@ -1,6 +1,6 @@
 # What must never travel from a developer's machine into an image.
 #
-# Without this file, `COPY apps/web ./apps/web` brought the host's own `dist/`
+# Without this file, `COPY apps/client ./apps/client` brings the host's own build output
 # and `node_modules/` along, and the build then ran on top of them. The result
 # was an image whose server bundle and client assets came from different builds:
 # the server-rendered HTML asked for /assets/styles-DLWCcDOO.css, that file was
@@ -29,6 +29,12 @@ build/
 **/.mastra/
 **/.vinxi/
 **/.nitro/
+# Next's build output and its cache. The same lesson as `dist/` above, and far
+# more expensive to learn: a developer's .next/ reached 1.2GB, and sending it as
+# build context was enough to get the build killed outright before it compiled
+# a single file.
+.next/
+**/.next/
 
 # Python
 .venv/

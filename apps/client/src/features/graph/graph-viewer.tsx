@@ -13,12 +13,20 @@ import {
 	wheelZoomFactor,
 	ZOOM_STEP,
 } from "./hooks/use-viewport";
-import { buildLabelStyles, labelStyleFor, primaryLabel } from "./style";
-import type { GraphData, GraphSelection, SimulationNode } from "./types";
+import { maxSharedSources, relationshipStrength } from "./strength";
+import { communityName, communityOf, communityStyleFor } from "./style";
+import type {
+	GraphData,
+	GraphNode,
+	GraphSelection,
+	SimulationNode,
+} from "./types";
 
 /** Pointer travel before a press counts as a drag rather than a click. */
 const DRAG_THRESHOLD = 4;
 const NODE_DISMISS_DURATION_MS = 160;
+/** Ticks between viewport fits while the opening layout is still spreading. */
+const FIT_INTERVAL_FRAMES = 24;
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 const EASE_EXIT = [0.7, 0, 0.84, 0] as const;
 
@@ -96,18 +104,78 @@ export function GraphViewer({
 	);
 	const [selection, setSelection] = useState<GraphSelection>(null);
 	const [focus, setFocus] = useState<GraphFocus>(null);
+	// Starts at zero: the graph shows everything it knows until the reader asks
+	// for less. A default that hid connections would make the picture look
+	// sparser than the workspace actually is.
+	const [minStrength, setMinStrength] = useState(0);
 	const [panning, setPanning] = useState(false);
 	const [dismissingNodeIds, setDismissingNodeIds] = useState<
 		ReadonlySet<string>
 	>(() => new Set());
 
+	/**
+	 * Ids this viewer has already decided about — shown, or deliberately not.
+	 *
+	 * Seeded from the graph itself rather than from `visibleNodeIds`: with a
+	 * narrow `initialVisibleNodeIds`, every other node would count as new on the
+	 * first run below and be unioned straight back in, quietly defeating the
+	 * prop. Seeding from `data` also yields an empty set in the case that matters
+	 * here, where the viewer mounts before the query resolves.
+	 */
+	const seenNodeIdsRef = useRef<Set<string> | null>(null);
+
+	// The visible set is seeded once, at mount, which on this page happens while
+	// the graph query is still pending — so it would stay empty forever and the
+	// canvas would read "No nodes to display" over a full graph. Re-seeding it
+	// from `data` instead would drag every dismissed node back onto the canvas.
+	// Between the two: only ids never seen before join the visible set, and a
+	// dismissed node has been seen, so it stays gone.
+	useEffect(() => {
+		const ids = data.nodes.map((node) => node.id);
+		const seen = seenNodeIdsRef.current;
+
+		if (seen === null) {
+			// First run. Whatever the graph holds now is what this viewer has
+			// already decided about — which, when the query is still pending, is
+			// nothing at all. That is the case the union below exists for.
+			seenNodeIdsRef.current = new Set(ids);
+			return;
+		}
+
+		const fresh = ids.filter((id) => !seen.has(id));
+
+		if (fresh.length === 0) {
+			return;
+		}
+
+		for (const id of fresh) {
+			seen.add(id);
+		}
+
+		setVisibleNodeIds((current) => new Set([...current, ...fresh]));
+	}, [data.nodes]);
+
 	const adjacency = useMemo(() => buildAdjacency(data), [data]);
 
 	/**
-	 * Colours come from the full graph, not the visible subset, so hiding a node
-	 * never reshuffles the palette.
+	 * A node's colour is its cluster's colour, so hiding or dismissing nodes
+	 * never reshuffles the palette — the index comes from the detection run, not
+	 * from the order things happen to appear in.
 	 */
-	const labelStyles = useMemo(() => buildLabelStyles(data.nodes), [data.nodes]);
+	const styleForNode = useCallback(
+		(node: GraphNode) => communityStyleFor(communityOf(node)),
+		[],
+	);
+
+	/**
+	 * Strength is measured against the whole graph, not the visible subset, so
+	 * hiding a node cannot make the surviving connections look stronger than
+	 * they are.
+	 */
+	const maxShared = useMemo(
+		() => maxSharedSources(data.relationships),
+		[data.relationships],
+	);
 
 	const visibleData = useMemo<GraphData>(() => {
 		const nodes = data.nodes.filter((node) => visibleNodeIds.has(node.id));
@@ -118,10 +186,27 @@ export function GraphViewer({
 			relationships: data.relationships.filter(
 				(relationship) =>
 					present.has(relationship.startNodeId) &&
-					present.has(relationship.endNodeId),
+					present.has(relationship.endNodeId) &&
+					relationshipStrength(relationship, maxShared) >= minStrength,
 			),
 		};
-	}, [data, visibleNodeIds]);
+	}, [data, visibleNodeIds, minStrength, maxShared]);
+
+	/** How much the filter is currently holding back, so the slider says so. */
+	const hiddenRelationshipCount = useMemo(() => {
+		if (minStrength === 0) {
+			return 0;
+		}
+
+		const present = new Set(visibleData.nodes.map((node) => node.id));
+
+		return data.relationships.filter(
+			(relationship) =>
+				present.has(relationship.startNodeId) &&
+				present.has(relationship.endNodeId) &&
+				relationshipStrength(relationship, maxShared) < minStrength,
+		).length;
+	}, [data.relationships, visibleData.nodes, minStrength, maxShared]);
 
 	const { simulation, frame, reheat } = useGraphSimulation(visibleData);
 	const { viewport, setViewport, screenToGraph, panBy, zoomAt, fit } =
@@ -145,15 +230,29 @@ export function GraphViewer({
 		return counts;
 	}, [visibleData.nodes, adjacency, visibleNodeIds]);
 
-	const legendLabels = useMemo(
-		() =>
-			countBy(visibleData.nodes, primaryLabel).map(([label, count]) => ({
-				label,
-				count,
-				style: labelStyleFor(labelStyles, label),
-			})),
-		[visibleData.nodes, labelStyles],
-	);
+	/** One chip per cluster, in the order the detection run numbered them. */
+	const legendCommunities = useMemo(() => {
+		const counts = new Map<number | null, number>();
+
+		for (const node of visibleData.nodes) {
+			const community = communityOf(node);
+			counts.set(community, (counts.get(community) ?? 0) + 1);
+		}
+
+		return (
+			[...counts.entries()]
+				// Unclustered last: it is the absence of an answer, not the last answer.
+				.sort(
+					([a], [b]) =>
+						(a ?? Number.MAX_SAFE_INTEGER) - (b ?? Number.MAX_SAFE_INTEGER),
+				)
+				.map(([community, count]) => ({
+					name: communityName(community),
+					count,
+					style: communityStyleFor(community),
+				}))
+		);
+	}, [visibleData.nodes]);
 
 	const legendTypes = useMemo(
 		() =>
@@ -194,6 +293,7 @@ export function GraphViewer({
 
 	const centred = useRef(false);
 	const framed = useRef(false);
+	const lastFitFrame = useRef(-FIT_INTERVAL_FRAMES);
 
 	// The layout is centred on the origin, so put the origin in the middle of
 	// the canvas before the first frame or the graph unfolds from the corner.
@@ -222,19 +322,31 @@ export function GraphViewer({
 		}
 	}, [size, simulation, reheat]);
 
-	// Frame the graph once the opening layout stops moving.
+	// Frame the graph while the opening layout spreads out, rather than only once
+	// it has stopped moving — settling takes about five seconds, and for all of
+	// them the graph sat off-canvas.
+	//
+	// Every few ticks, not every tick. `fit` writes a new viewport object, and a
+	// write is a render; doing that sixty times a second is a loop React
+	// eventually refuses to keep up with. A dozen fits over the opening is enough
+	// to keep the graph in view while it expands, and framing stops for good at
+	// settle so a pan or zoom the reader performs is never stolen.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `frame` is an intentional trigger, not a read value — it makes this re-check on every simulation tick.
 	useEffect(() => {
-		if (
-			framed.current ||
-			!simulation.isSettled ||
-			simulation.nodes.length === 0 ||
-			size.width === 0
-		) {
+		if (framed.current || simulation.nodes.length === 0 || size.width === 0) {
 			return;
 		}
 
-		framed.current = true;
+		const settled = simulation.isSettled;
+
+		if (!settled && frame - lastFitFrame.current < FIT_INTERVAL_FRAMES) {
+			return;
+		}
+
+		lastFitFrame.current = frame;
+		framed.current = settled;
+
+		// biome-ignore lint/suspicious/noFocusedTests: `fit` is the viewport helper from use-viewport, not a focused test — biome's unsafe autofix rewrites it to `it(` and breaks the canvas.
 		fit(simulation.nodes, size);
 	}, [frame, simulation, size, fit]);
 
@@ -335,6 +447,10 @@ export function GraphViewer({
 
 				pan.lastX = event.clientX;
 				pan.lastY = event.clientY;
+				// The reader has taken the viewport over. The opening auto-fit
+				// re-frames on every tick until the layout settles, which would
+				// otherwise undo this pan a sixtieth of a second after it happened.
+				framed.current = true;
 				panBy(dx, dy);
 			}
 		},
@@ -469,6 +585,7 @@ export function GraphViewer({
 	}, [simulation, reheat]);
 
 	const fitToView = useCallback(() => {
+		// biome-ignore lint/suspicious/noFocusedTests: `fit` is the viewport helper from use-viewport, not a focused test — biome's unsafe autofix rewrites it to `it(` and breaks the canvas.
 		fit(simulation.nodes, size);
 	}, [fit, simulation, size]);
 
@@ -486,6 +603,9 @@ export function GraphViewer({
 		const onWheel = (event: WheelEvent) => {
 			event.preventDefault();
 			const bounds = element.getBoundingClientRect();
+			// Same reason as the pan handler: a zoom is the reader taking over, and
+			// the opening auto-fit must stop competing with them.
+			framed.current = true;
 
 			zoomAt(
 				wheelZoomFactor(event.deltaY),
@@ -560,8 +680,8 @@ export function GraphViewer({
 			return false;
 		}
 
-		if (focus.kind === "label") {
-			return primaryLabel(node) !== focus.value;
+		if (focus.kind === "community") {
+			return communityName(communityOf(node)) !== focus.value;
 		}
 
 		return !focusedTypeNodeIds?.has(node.id);
@@ -612,8 +732,10 @@ export function GraphViewer({
 									focus !== null &&
 									(focus.kind === "type"
 										? relationship.type !== focus.value
-										: primaryLabel(relationship.source) !== focus.value &&
-											primaryLabel(relationship.target) !== focus.value)
+										: communityName(communityOf(relationship.source)) !==
+												focus.value &&
+											communityName(communityOf(relationship.target)) !==
+												focus.value)
 								}
 								dismissing={
 									dismissingNodeIds.has(relationship.source.id) ||
@@ -629,7 +751,7 @@ export function GraphViewer({
 							<GraphNodeShape
 								key={node.id}
 								node={node}
-								style={labelStyleFor(labelStyles, primaryLabel(node))}
+								style={styleForNode(node)}
 								selected={node.id === selectedNodeId}
 								dimmed={isNodeDimmed(node)}
 								dismissing={dismissingNodeIds.has(node.id)}
@@ -649,10 +771,13 @@ export function GraphViewer({
 			<div className="pointer-events-none absolute inset-x-3 top-[var(--graph-overlay-top,0.75rem)] bottom-3 flex flex-col justify-between gap-3">
 				<div className={cn("min-w-0", inspectorTarget && "pr-[19rem]")}>
 					<GraphLegend
-						labels={legendLabels}
+						communities={legendCommunities}
 						types={legendTypes}
 						focus={focus}
 						onFocusChange={setFocus}
+						minStrength={minStrength}
+						onMinStrengthChange={setMinStrength}
+						hiddenRelationshipCount={hiddenRelationshipCount}
 					/>
 				</div>
 
@@ -692,7 +817,6 @@ export function GraphViewer({
 					>
 						<GraphInspector
 							target={inspectorTarget}
-							labelStyles={labelStyles}
 							onClose={() => select(null)}
 							onExpand={expand}
 							onDismiss={dismiss}

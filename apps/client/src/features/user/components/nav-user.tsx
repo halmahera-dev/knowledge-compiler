@@ -7,10 +7,9 @@ import {
   MoonFastWindIcon,
   MoreVerticalCircle01Icon,
   PaintBoardIcon,
-  Settings01Icon,
+  PlusSignIcon,
   Sun03Icon,
   Tick02Icon,
-  UserAccountIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@kc/ui/components/avatar";
@@ -43,6 +42,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
 import { authClient } from "../user-client";
+import { clearApiToken } from "../user-token";
 
 function getInitials(name: string) {
   return name
@@ -88,6 +88,10 @@ export default function NavUser() {
       return;
     }
 
+    // The cached JWT still names the workspace being left, and it is good for
+    // another ~14 minutes. `queryClient.clear()` empties React Query, not the
+    // token module — without this the next request reads the old workspace.
+    clearApiToken();
     queryClient.clear();
 
     if (isMobile) {
@@ -104,6 +108,7 @@ export default function NavUser() {
       <SidebarMenuItem className="mt-1">
         <DropdownMenu>
           <DropdownMenuTrigger
+            data-tour="workspace"
             render={
               <SidebarMenuButton
                 size="lg"
@@ -124,14 +129,13 @@ export default function NavUser() {
             ) : (
               <>
                 <Avatar>
+                  {/* Only a real uploaded image is shown. The fallback used to
+                      be a dicebear URL with a fixed seed, so every user without
+                      one wore the same face — and it cost a request to a third
+                      party to say nothing. AvatarFallback already has initials. */}
                   {session?.user.image ? (
                     <AvatarImage src={session.user.image} alt={userName} />
-                  ) : (
-                    <AvatarImage
-                      src="https://api.dicebear.com/9.x/glass/svg?seed=wholefoods"
-                      alt={userName}
-                    />
-                  )}
+                  ) : null}
                   <AvatarFallback>{getInitials(userName)}</AvatarFallback>
                 </Avatar>
 
@@ -159,15 +163,9 @@ export default function NavUser() {
             align="start"
           >
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <HugeiconsIcon icon={UserAccountIcon} />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <HugeiconsIcon icon={Settings01Icon} />
-                Settings
-              </DropdownMenuItem>
-
+              {/* "Account" and "Settings" lived here with no handlers. A menu
+                  item that does nothing when clicked reads as broken, not as
+                  coming soon — they are gone until there is something to open. */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <HugeiconsIcon icon={PaintBoardIcon} />
@@ -242,6 +240,29 @@ export default function NavUser() {
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuGroup>
+
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      {/* The only way into the create form from the signed-in
+                          UI. It navigates rather than taking a name inline: the
+                          page's form already clears the token and the query
+                          cache in the order the API expects, and typing into a
+                          text field inside role="menu" fights the menu's own
+                          typeahead and arrow-key handling. */}
+                      <DropdownMenuItem
+                        disabled={Boolean(switchingId)}
+                        onClick={() => {
+                          if (isMobile) {
+                            setOpenMobile(false);
+                          }
+
+                          router.push("/workspace/new");
+                        }}
+                      >
+                        <HugeiconsIcon icon={PlusSignIcon} />
+                        New workspace
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
@@ -258,8 +279,15 @@ export default function NavUser() {
                     return;
                   }
 
+                  // The token outlives the session it was minted from, so the
+                  // next sign-in would otherwise make its first request as the
+                  // person who just left.
+                  clearApiToken();
                   queryClient.clear();
-                  router.push("/login");
+                  // The landing page, not the sign-in form: someone who just
+                  // left is not necessarily coming straight back, and a login
+                  // box is a dead end for anyone who is done.
+                  router.push("/landing");
                   router.refresh();
                 }}
               >

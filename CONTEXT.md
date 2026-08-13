@@ -3,9 +3,8 @@
 ## Glossary
 
 **Note** — a compiled, agent-maintained record produced by the compile pipeline
-from captured sources. Previously called a "wiki page" in `apps/web` (the old
-TanStack Router app); same concept, renamed for `apps/client` (the Next.js
-app). Not a user-authored note — the data is compiler output. Routed at
+from captured sources. Called a "wiki page" by the compiler and the API; same
+concept under two names, which is a wart the product has not settled yet. Not a user-authored note — the data is compiler output. Routed at
 `/[slug]` via `NoteReader` in `apps/client`.
 
 **Gap** (Knowledge gap) — a prerequisite or follow-up question the compiler

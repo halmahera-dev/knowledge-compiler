@@ -291,3 +291,34 @@
 		background: var(--background);
 	}
 }
+
+/**
+ * The pending state, held back for 120ms.
+ *
+ * A route that resolves quickly should not flash a loading message on the way —
+ * that reads as slowness the app did not actually have. The fallback still
+ * mounts immediately, so anything genuinely slow appears on time; it is only
+ * invisible for the interval in which most navigations complete.
+ *
+ * The retired app got this from a router option (`defaultPendingMs: 120`). Next
+ * has no equivalent, but the behaviour is purely visual and CSS can hold it.
+ */
+@keyframes kc-pending-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.kc-pending {
+  opacity: 0;
+  animation: kc-pending-in 1ms 120ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The delay is not motion, but a reader who asked for less of it is better
+     served by content that simply appears than by anything timed. */
+  .kc-pending {
+    opacity: 1;
+    animation: none;
+  }
+}

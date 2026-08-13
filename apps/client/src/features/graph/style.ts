@@ -91,7 +91,7 @@ const LABEL_PALETTE: readonly LabelStyle[] = [
 	},
 ];
 
-/** slate, for labels past the end of the palette. */
+/** slate, for anything past the end of the palette. */
 const FALLBACK_STYLE: LabelStyle = {
 	fill: "oklch(70.4% 0.04 256.788)",
 	stroke: "oklch(44.6% 0.043 257.281)",
@@ -99,38 +99,67 @@ const FALLBACK_STYLE: LabelStyle = {
 };
 
 /**
+ * Nodes the detection run has not put in a cluster yet. Slate, so an
+ * unclustered node reads as "no answer" rather than as a cluster of its own.
+ */
+const UNCLUSTERED_STYLE = FALLBACK_STYLE;
+
+/** The cluster number a node carries, or null before the first detection run. */
+export function communityOf(node: GraphNode): number | null {
+	const value = node.properties.community;
+	return typeof value === "number" ? value : null;
+}
+
+/**
+ * A cluster's colour.
+ *
+ * Nodes used to be painted by label, and there are exactly two labels in this
+ * product — Topic and Concept — so the whole canvas came out in two colours and
+ * the clustering the compiler works out was invisible. The same palette now
+ * indexes by cluster instead, which is the thing worth seeing.
+ *
+ * `community` is a colour index, not an identity: detection renumbers on every
+ * save. Fine for paint, which is why nothing is stored against it.
+ */
+export function communityStyleFor(community: number | null): LabelStyle {
+	if (community === null) {
+		return UNCLUSTERED_STYLE;
+	}
+
+	return LABEL_PALETTE[community % LABEL_PALETTE.length] ?? UNCLUSTERED_STYLE;
+}
+
+/**
+ * A, B, … Z, AA — a name a reader can say out loud and point at.
+ *
+ * The cluster number is an implementation detail that changes every save;
+ * "cluster 7" invites the reader to remember something that will not be true
+ * tomorrow. A letter reads as a position in a list, which is all it is.
+ */
+export function communityName(community: number | null): string {
+	if (community === null) {
+		return "Unclustered";
+	}
+
+	let name = "";
+	let remaining = community;
+
+	while (true) {
+		name = String.fromCharCode(65 + (remaining % 26)) + name;
+		remaining = Math.floor(remaining / 26) - 1;
+
+		if (remaining < 0) {
+			return name;
+		}
+	}
+}
+
+/**
  * Neo4j renders one label per node and uses the last one, which by convention
  * is the most specific.
  */
 export function primaryLabel(node: GraphNode): string {
 	return node.labels.at(-1) ?? "Node";
-}
-
-/** Stable label -> colour assignment, ordered by first appearance. */
-export function buildLabelStyles(
-	nodes: readonly GraphNode[],
-): Map<string, LabelStyle> {
-	const styles = new Map<string, LabelStyle>();
-
-	for (const node of nodes) {
-		const label = primaryLabel(node);
-
-		if (!styles.has(label)) {
-			styles.set(
-				label,
-				LABEL_PALETTE[styles.size % LABEL_PALETTE.length] ?? FALLBACK_STYLE,
-			);
-		}
-	}
-
-	return styles;
-}
-
-export function labelStyleFor(
-	styles: ReadonlyMap<string, LabelStyle>,
-	label: string,
-): LabelStyle {
-	return styles.get(label) ?? FALLBACK_STYLE;
 }
 
 /**

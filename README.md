@@ -69,7 +69,7 @@ come from the same place as the session.
 
 ```
   Web app          Extension
- (TanStack Start)   (MV3)
+   (Next.js)         (MV3)
        │                │
        └────────┬───────┘
                 ▼
@@ -92,7 +92,7 @@ half-updated, and it makes each pipeline stage testable on its own.
 
 | Layer | Choice |
 | --- | --- |
-| Frontend | TanStack Start (React 19, Vite, Tailwind v4) |
+| Frontend | Next.js 16 (React 19, Tailwind v4, shadcn/ui) |
 | API | FastAPI + SQLAlchemy async + arq |
 | Agent | Mastra v1, GLM-5 via AWS Bedrock Mantle |
 | Database | CockroachDB (native `VECTOR` type + cosine vector indexes) |
@@ -214,7 +214,7 @@ because the models disagree about what a score means (see [Configuration](#confi
 | Service | Where | What it does here |
 | --- | --- | --- |
 | **Amazon Bedrock** (Mantle) | [`apps/agent/src/mastra/config.ts`](apps/agent/src/mastra/config.ts) | `zai.glm-5` drives every reasoning step — extract, match, compile, link — and the copilot's answers. |
-| **Amazon Bedrock** (`bedrock-runtime`) | [`apps/api/app/embeddings.py`](apps/api/app/embeddings.py) | Cohere Embed v4 via `global.cohere.embed-v4:0` produces every 1024-dim vector the index above stores. |
+| **Amazon Bedrock** (`bedrock-runtime`) | [`apps/api/app/services/embeddings.py`](apps/api/app/services/embeddings.py) | Cohere Embed v4 via `global.cohere.embed-v4:0` produces every 1024-dim vector the index above stores. |
 
 Bedrock is reached two different ways because Mantle has no `/v1/embeddings`
 endpoint; embeddings go through `bedrock-runtime` over boto3. One Bedrock API key
@@ -303,21 +303,32 @@ and syncs the Python environment.
 pnpm dev
 ```
 
-This clears anything left from a previous session, brings the containers up, and
-runs all four services with labelled output. `Ctrl+C` stops them together.
+This runs all four processes with labelled output — the Next client, the API,
+the compile worker, and the agent. `Ctrl+C` stops them together.
+
+The worker is one of the four for a reason: it is the only consumer of the
+compile queue. Without it a save is accepted, queued, and never processed, and
+the item sits at `pending` looking like a broken compile rather than a missing
+process.
 
 | | |
 | --- | --- |
-| Web app | http://localhost:3000 |
+| Web app | http://localhost:5173 |
 | API docs | http://localhost:8000/docs |
 | Mastra studio | http://localhost:4111 |
 | CockroachDB console | http://localhost:8080 |
 
-To run a single service on its own: `pnpm dev:web`, `pnpm dev:agent`,
-`pnpm api:dev`, `pnpm api:worker`.
+To run one at a time: `pnpm dev:client`, `pnpm dev:api`, `pnpm dev:agent`,
+`pnpm dev:worker`.
+
+**Containers are not started by `pnpm dev`.** Run `pnpm db:up` first — it brings
+up CockroachDB and Redis and creates the `kc` schema. MinIO is not in the compose
+file; if PDF capture is needed, start it separately with `docker start minio`.
 
 > If a service will not start after an unclean shutdown, `pnpm dev:clean` frees
-> the ports and clears Mastra's dev lock. `pnpm dev` already does this first.
+> the ports and clears Mastra's dev lock. Run it before `pnpm dev` — it is no
+> longer run automatically, and a held port fails the whole `turbo run` rather
+> than just the service that wanted it.
 
 Seed a demo knowledge base (18 sources across three overlapping topic clusters,
 including a pair that deliberately contradicts). Items belong to a workspace, so
@@ -329,7 +340,7 @@ SEED_EMAIL=you@example.com SEED_PASSWORD=... pnpm seed
 
 It signs in, seeds your first workspace, and names it before starting. If you
 would rather not put a password on the command line, copy a token from
-`http://localhost:3000/api/auth/token` while signed in and pass `SEED_TOKEN`
+`http://localhost:5173/api/auth/token` while signed in and pass `SEED_TOKEN`
 instead. Re-running is safe: identical content is detected as a duplicate and
 nothing is compiled twice.
 
@@ -527,19 +538,22 @@ the whole segment migrates against the wrong cluster without complaint.
 
 ```
 apps/
-  web/         TanStack Start app — capture, wiki, graph, gaps. Kept on disk as
-               a reference but disabled: excluded from the pnpm workspace, so
-               it is not installed, built, or run
-  client/      Next.js rewrite of apps/web, now the active app — see
-               CONTEXT.md and FEATURE_MIGRATION_MAP.md for what has and has
-               not moved over
+  client/      Next.js app — capture, wiki, graph, gaps, copilot. See
+               CONTEXT.md and FEATURE_MIGRATION_MAP.md for how it came to be
   api/         FastAPI: storage, embeddings, SSE, agent callbacks
+    app/api/       routers and the dependencies they inject
+    app/core/      settings, database session, auth, queue, scoping
+    app/services/  everything that reads or writes the knowledge base
+    app/scripts/   seeding and backfills, run by hand rather than served
   agent/       Mastra: the five-step compile workflow
   extension/   Manifest V3 clipper, no build step
 packages/
+  db/          Prisma schema, migrations, and the generated client
+  auth/        Better Auth server configuration
+  env/         one validated view of the root .env per runtime
+  ui/          shadcn components shared by the app
   contracts/   Shared zod schemas
-  tsconfig/    Shared TypeScript config
-prisma/        Schema and migrations
+  config/      Shared TypeScript config
 scripts/       db:up, migration tooling, and the ccloud workflow
 .mcp.json      CockroachDB Cloud MCP server, for any MCP client
 ```

@@ -1,20 +1,28 @@
 export { relationshipGeometry } from "./geometry";
+export { type Community, fetchCommunities } from "./graph-api";
+export { graphKeys } from "./graph-cache";
+export { type EdgeRelation, fetchGraph } from "./graph-data";
 export { GraphInspector } from "./graph-inspector";
 export { type GraphFocus, GraphLegend } from "./graph-legend";
+export {
+	communitiesQueryOptions,
+	graphQueryOptions,
+} from "./graph-query-options";
+export { GraphThemes } from "./graph-themes";
 export {
 	GraphViewer,
 	type GraphViewerProps,
 } from "./graph-viewer";
+export { useCommunities } from "./hooks/use-communities";
+export { useGraph } from "./hooks/use-graph";
 export { useGraphSimulation } from "./hooks/use-graph-simulation";
 export { useElementSize, useViewport } from "./hooks/use-viewport";
-export { SAMPLE_GRAPH, SAMPLE_SEED_NODE_IDS } from "./sample-data";
 export {
 	DEFAULT_SIMULATION_CONFIG,
 	ForceSimulation,
 	type SimulationConfig,
 } from "./simulation";
 export {
-	buildLabelStyles,
 	type LabelStyle,
 	nodeCaption,
 	primaryLabel,

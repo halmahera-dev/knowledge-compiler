@@ -2,37 +2,43 @@
 
 import {
 	Asteroid02Icon,
-	Chart03Icon,
-	ChevronDown,
+	Coins01Icon,
 	Cursor02Icon,
+	FilePlusIcon,
+	HelpCircleIcon,
 	NotebookText,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "@kc/ui/components/collapsible";
-import {
 	Sidebar,
 	SidebarContent,
+	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
-	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenuButton,
 	SidebarMenuItem,
 } from "@kc/ui/components/sidebar";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { VisualHelpButton } from "@/features/tour/visual-help-button";
 import NavUser from "@/features/user/components/nav-user";
 
-const NOTE_COLLECTIONS = ["Research", "Reference", "Project", "Inbox"];
+/**
+ * Top-level paths this app serves itself.
+ *
+ * Compiled pages live at `/{slug}`, so anything that is not one of these is a
+ * page — which is what tells "All Notes" whether it is the active destination.
+ * Kept in step with `RESERVED_SLUGS` in apps/api/app/services/compile.py, which
+ * stops a page from ever taking one of these slugs in the first place.
+ */
+const APP_ROUTES = new Set(["capture", "agent", "graph", "gaps", "ai-logs"]);
 
 export function AppSidebar() {
 	const pathname = usePathname();
-	const searchParams = useSearchParams();
-	const activeCollection = searchParams.get("collection");
+	const section = pathname.split("/")[1] ?? "";
+	// A compiled page is "All Notes" too — it is what the index links to.
+	const onNotes = !APP_ROUTES.has(section);
 
 	return (
 		<Sidebar variant="inset">
@@ -44,7 +50,8 @@ export function AppSidebar() {
 					<SidebarGroupContent className="flex flex-col gap-1">
 						<SidebarMenuItem>
 							<SidebarMenuButton
-								isActive={pathname === "/" && activeCollection === null}
+								data-tour="nav-notes"
+								isActive={onNotes}
 								render={<Link href="/" />}
 							>
 								<HugeiconsIcon icon={NotebookText} />
@@ -54,6 +61,18 @@ export function AppSidebar() {
 
 						<SidebarMenuItem>
 							<SidebarMenuButton
+								data-tour="nav-capture"
+								isActive={pathname === "/capture"}
+								render={<Link href="/capture" />}
+							>
+								<HugeiconsIcon icon={FilePlusIcon} />
+								Capture
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								data-tour="nav-agent"
 								isActive={pathname.startsWith("/agent")}
 								render={<Link href="/agent" />}
 							>
@@ -64,6 +83,7 @@ export function AppSidebar() {
 
 						<SidebarMenuItem>
 							<SidebarMenuButton
+								data-tour="nav-graph"
 								isActive={pathname === "/graph"}
 								render={<Link href="/graph" />}
 							>
@@ -74,45 +94,32 @@ export function AppSidebar() {
 
 						<SidebarMenuItem>
 							<SidebarMenuButton
-								isActive={pathname === "/statistics"}
-								render={<Link href="/statistics" />}
+								data-tour="nav-gaps"
+								isActive={pathname === "/gaps"}
+								render={<Link href="/gaps" />}
 							>
-								<HugeiconsIcon icon={Chart03Icon} />
-								Statistics
+								<HugeiconsIcon icon={HelpCircleIcon} />
+								Gaps
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								data-tour="nav-ai-logs"
+								isActive={pathname === "/ai-logs"}
+								render={<Link href="/ai-logs" />}
+							>
+								<HugeiconsIcon icon={Coins01Icon} />
+								AI Logs
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					</SidebarGroupContent>
 				</SidebarGroup>
-
-				<Collapsible defaultOpen className="group/collapsible">
-					<SidebarGroup>
-						<SidebarGroupLabel render={<CollapsibleTrigger />}>
-							Categories
-							<HugeiconsIcon
-								icon={ChevronDown}
-								className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180"
-							/>
-						</SidebarGroupLabel>
-
-						<CollapsibleContent className="translate-y-0 overflow-hidden opacity-100 transition-[opacity,transform] duration-60 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:-translate-y-[3px] data-starting-style:-translate-y-[3px] data-ending-style:opacity-0 data-starting-style:opacity-0 data-ending-style:duration-[140ms] data-ending-style:ease-[cubic-bezier(0.7,0,0.84,0)] motion-reduce:duration-100 motion-reduce:data-ending-style:-translate-y-px motion-reduce:data-starting-style:-translate-y-px">
-							<SidebarGroupContent>
-								{NOTE_COLLECTIONS.map((collection) => (
-									<SidebarMenuItem key={collection}>
-										<SidebarMenuButton
-											isActive={
-												pathname === "/" && activeCollection === collection
-											}
-											render={<Link href={`/?collection=${collection}`} />}
-										>
-											{collection}
-										</SidebarMenuButton>
-									</SidebarMenuItem>
-								))}
-							</SidebarGroupContent>
-						</CollapsibleContent>
-					</SidebarGroup>
-				</Collapsible>
 			</SidebarContent>
+
+			<SidebarFooter>
+				<VisualHelpButton />
+			</SidebarFooter>
 		</Sidebar>
 	);
 }

@@ -14,16 +14,22 @@ import { Input } from "@kc/ui/components/input";
 import { cn } from "@kc/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "../user-client";
+import { clearApiToken } from "../user-token";
+import { safeRedirect } from "@/lib/redirects";
 
 export function RegisterForm({
 	className,
 	...props
 }: React.ComponentProps<"form">) {
 	const router = useRouter();
+	// Where the visitor was heading before the sign-in detour. Attacker-
+	// controllable, so it is filtered to a path on this origin before it is
+	// followed — this is navigated to immediately after a password is typed.
+	const destination = safeRedirect(useSearchParams().get("redirect"));
 
 	const form = useForm({
 		defaultValues: {
@@ -54,7 +60,9 @@ export function RegisterForm({
 				},
 				{
 					onSuccess: () => {
-						router.push("/");
+						// See login-form: a stale token outlives the session it came from.
+						clearApiToken();
+						router.push(destination);
 						router.refresh();
 
 						toast.success("Account created successfully");

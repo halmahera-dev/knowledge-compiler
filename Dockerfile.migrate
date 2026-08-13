@@ -1,11 +1,18 @@
 FROM node:20-slim
-RUN corepack enable && corepack prepare pnpm@10.8.1 --activate
+# Prisma's query engine links against libssl, which node:*-slim does not ship.
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable && corepack prepare pnpm@10.8.1 --activate
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
+# The schema, its migrations, and prisma.config.ts all live inside @kc/db now,
+# so they arrive with `packages`. The root `prisma/` and `prisma.config.ts` this
+# used to copy no longer exist — the first was a stale duplicate that had drifted
+# to Postgres SQL, and both are gone.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
-COPY prisma ./prisma
 COPY scripts ./scripts
 
 RUN pnpm install --frozen-lockfile

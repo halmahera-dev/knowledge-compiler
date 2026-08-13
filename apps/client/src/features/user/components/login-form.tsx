@@ -14,16 +14,22 @@ import { Input } from "@kc/ui/components/input";
 import { cn } from "@kc/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "../user-client";
+import { clearApiToken } from "../user-token";
+import { safeRedirect } from "@/lib/redirects";
 
 export function LoginForm({
 	className,
 	...props
 }: React.ComponentProps<"form">) {
 	const router = useRouter();
+	// Where the visitor was heading before the sign-in detour. Attacker-
+	// controllable, so it is filtered to a path on this origin before it is
+	// followed — this is navigated to immediately after a password is typed.
+	const destination = safeRedirect(useSearchParams().get("redirect"));
 
 	const form = useForm({
 		defaultValues: {
@@ -44,7 +50,10 @@ export function LoginForm({
 				},
 				{
 					onSuccess: () => {
-						router.push("/");
+						// A token cached before this sign-in belongs to whoever was
+						// here last; without this the first request is made as them.
+						clearApiToken();
+						router.push(destination);
 						router.refresh();
 
 						toast.success("Signed in successfully");
@@ -102,16 +111,11 @@ export function LoginForm({
 
 						return (
 							<Field>
-								<div className="flex items-center">
-									<FieldLabel htmlFor={field.name}>Password</FieldLabel>
-
-									<Link
-										href="/forgot-password"
-										className="ml-auto text-sm underline-offset-4 hover:underline"
-									>
-										Forgot your password?
-									</Link>
-								</div>
+								{/* No "Forgot your password?" link: nothing in this repo can
+										send an email, so it led to a page that said the words and
+										did nothing. An offer that cannot be honoured is worse than
+										its absence — it costs the reader an attempt to recover. */}
+								<FieldLabel htmlFor={field.name}>Password</FieldLabel>
 
 								<Input
 									id={field.name}

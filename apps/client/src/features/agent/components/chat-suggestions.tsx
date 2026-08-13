@@ -2,11 +2,11 @@
 
 import {
 	Book02Icon,
-	Idea01Icon,
-	InboxIcon,
-	Link01Icon,
-	TimeQuarterPassIcon,
-	Unlink01Icon,
+	GitCompareIcon,
+	HelpCircleIcon,
+	Layers01Icon,
+	QuoteDownIcon,
+	Route01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Button } from "@kc/ui/components/button";
@@ -18,39 +18,51 @@ type ChatSuggestion = {
 	icon: IconSvgElement;
 };
 
+/**
+ * Openers the copilot can actually answer.
+ *
+ * It has exactly one tool: a search over the workspace's compiled claims, plus
+ * the list of themes those pages group into. So every prompt here asks about
+ * the collection itself or about what the sources say — nothing that would need
+ * counting, folder structure, or knowledge from outside the workspace, all of
+ * which the agent is instructed to refuse rather than guess at. A suggestion
+ * that reliably produces "your notes don't cover this" is a bad suggestion.
+ */
 const CHAT_SUGGESTIONS: readonly ChatSuggestion[] = [
 	{
-		label: "Triage my inbox",
+		label: "What's in here",
 		prompt:
-			"What's still sitting in inbox/, and which folder should each note move to?",
-		icon: InboxIcon,
+			"Which themes does my workspace cover, and what is each one built from?",
+		icon: Layers01Icon,
 	},
 	{
-		label: "Find orphan notes",
-		prompt: "Which notes have no wikilinks pointing to them?",
-		icon: Unlink01Icon,
-	},
-	{
-		label: "Suggest wikilinks",
+		label: "Where my sources disagree",
 		prompt:
-			"Suggest wikilinks I'm missing between my #llms and #deep-learning notes.",
-		icon: Link01Icon,
+			"Where do my sources contradict each other, and what does each side actually claim?",
+		icon: GitCompareIcon,
 	},
 	{
-		label: "Synthesize a research note",
+		label: "Explain a theme",
 		prompt:
-			"Synthesize my reference/ notes on note-taking systems into one research note.",
-		icon: Idea01Icon,
-	},
-	{
-		label: "Resurface old reading",
-		prompt: "What did I read last month that I never linked to anything?",
-		icon: TimeQuarterPassIcon,
-	},
-	{
-		label: "Most-distilled sources",
-		prompt: "Which sources have I taken the most notes from, and on what?",
+			"Take the theme my workspace covers most and explain it from my own notes, citing each point.",
 		icon: Book02Icon,
+	},
+	{
+		label: "Show me the quotes",
+		prompt:
+			"What are the strongest claims in my workspace, and what is the verbatim quote behind each one?",
+		icon: QuoteDownIcon,
+	},
+	{
+		label: "How the themes connect",
+		prompt:
+			"What do my notes say about how my main themes relate to one another?",
+		icon: Route01Icon,
+	},
+	{
+		label: "What's still open",
+		prompt: "What questions do my notes raise but never answer?",
+		icon: HelpCircleIcon,
 	},
 ];
 

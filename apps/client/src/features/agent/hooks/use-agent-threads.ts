@@ -2,35 +2,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { agentKeys } from "@/features/agent/agent-cache";
 import { threadsQueryOptions } from "@/features/agent/agent-query-options";
-import {
-	createThread,
-	deleteThread,
-	renameThread,
-} from "@/features/agent/mastra-memory-api";
+import { deleteSession, renameSession } from "@/features/agent/chat-api";
 
 export function useThreads() {
 	return useQuery(threadsQueryOptions());
 }
 
-export function useCreateThread() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		mutationFn: () => createThread(crypto.randomUUID()),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: agentKeys.threads() });
-		},
-		onError: () => {
-			toast.error("Could not start a new conversation.");
-		},
-	});
-}
+/**
+ * There is no `useCreateThread`.
+ *
+ * A conversation is created by the composer at the moment the first question is
+ * sent, because its id becomes the route. Creating one from anywhere else leaves
+ * an empty row in the list that promises a conversation containing nothing.
+ */
 
 export function useDeleteThread() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (id: string) => deleteThread(id),
+		mutationFn: (id: string) => deleteSession(id),
 		onSuccess: (_data, id) => {
 			queryClient.invalidateQueries({ queryKey: agentKeys.threads() });
 			queryClient.removeQueries({ queryKey: agentKeys.thread(id) });
@@ -46,7 +36,7 @@ export function useRenameThread() {
 
 	return useMutation({
 		mutationFn: ({ id, title }: { id: string; title: string }) =>
-			renameThread(id, title),
+			renameSession(id, title),
 		onSuccess: (_data, { id }) => {
 			queryClient.invalidateQueries({ queryKey: agentKeys.threads() });
 			queryClient.invalidateQueries({ queryKey: agentKeys.thread(id) });

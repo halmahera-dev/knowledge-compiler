@@ -5,7 +5,7 @@
  * Two things survive an unclean shutdown (a hard Ctrl+C, a closed terminal, an
  * IDE restart) and both block the next `pnpm dev`:
  *
- *   1. A process still holding 3000 / 4111 / 8000.
+ *   1. A process still holding 5173 / 4111 / 8000.
  *   2. Mastra's `.mastra/dev.lock`, which refuses to start a second dev server
  *      in the same directory. If the recorded process is gone the lock is stale
  *      and safe to remove; if it is alive it is a real conflict.
@@ -19,7 +19,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LOCK = join(ROOT, "apps", "agent", ".mastra", "dev.lock");
-const PORTS = [3000, 4111, 8000];
+// 3000 is the Next client; 5173 was where it used to listen and is kept so a
+// stale process from before the port move is still cleaned up.
+const PORTS = [5173, 4111, 8000, 3000];
 const isWindows = process.platform === "win32";
 
 function isAlive(pid) {

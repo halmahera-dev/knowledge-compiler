@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { ForceSimulation } from "../simulation";
 import type { GraphData } from "../types";
 
@@ -55,14 +55,28 @@ export function useGraphSimulation(data: GraphData) {
 		[],
 	);
 
+	/**
+	 * Restart the layout and the animation loop.
+	 *
+	 * Stable across renders, and that is load-bearing rather than tidiness. This
+	 * component re-renders on every tick, so a fresh closure here re-ran every
+	 * effect that depends on it — including the one that reheats to 0.5 while the
+	 * graph is unframed. That pinned alpha above the settling threshold forever:
+	 * the layout never settled, the rAF loop never idled, and the viewer burned a
+	 * frame's work sixty times a second on a graph that had stopped moving.
+	 */
+	const reheat = useCallback(
+		(alpha?: number) => {
+			simulation.reheat(alpha);
+			run.current();
+		},
+		[simulation],
+	);
+
 	return {
 		simulation,
 		/** Increments every tick; read it to make a render depend on positions. */
 		frame,
-		/** Restart the layout and the animation loop. */
-		reheat: (alpha?: number) => {
-			simulation.reheat(alpha);
-			run.current();
-		},
+		reheat,
 	};
 }

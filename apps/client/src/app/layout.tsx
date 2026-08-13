@@ -4,7 +4,12 @@ import { Providers } from "./providers";
 import "../index.css";
 
 export const metadata: Metadata = {
-  title: "Knowledge Compiler",
+  // Leaf first: "Capture · Knowledge Compiler" reads better in a crowded tab
+  // strip, where the first few characters are all that survive truncation.
+  title: {
+    template: "%s · Knowledge Compiler",
+    default: "Knowledge Compiler",
+  },
 };
 
 export const viewport: Viewport = {

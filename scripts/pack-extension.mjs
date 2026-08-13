@@ -12,7 +12,8 @@
  * central directory is about sixty lines; a package to avoid writing them would
  * be a supply-chain edge for no saving.
  *
- * Run by `pnpm pack:extension`, and by the web build before it copies `public/`.
+ * Run by `pnpm pack:extension`, and by the client's own dev and build scripts so
+ * the file is already in `public/` before Next serves or copies it.
  */
 import { deflateRawSync } from "node:zlib";
 import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync } from "node:fs";
@@ -21,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = join(ROOT, "apps", "extension");
-const OUT = join(ROOT, "apps", "web", "public", "knowledge-compiler-extension.zip");
+const OUT = join(ROOT, "apps", "client", "public", "knowledge-compiler-extension.zip");
 
 /** Files that belong to the repository, not to the extension. */
 const SKIP = new Set(["node_modules", "package.json", "README.md"]);

@@ -21,3 +21,20 @@ export function takePendingMessage(threadId: string): string | undefined {
 	if (value !== null) sessionStorage.removeItem(key);
 	return value ?? undefined;
 }
+
+/**
+ * A question rescued from a conversation that no longer exists, handed to the
+ * `/agent` composer so the reader can send it again without retyping it.
+ */
+const draftKey = "kc:chat-draft";
+
+export function setComposerDraft(text: string) {
+	sessionStorage.setItem(draftKey, text);
+}
+
+export function takeComposerDraft(): string | undefined {
+	if (typeof window === "undefined") return undefined;
+	const value = sessionStorage.getItem(draftKey);
+	if (value !== null) sessionStorage.removeItem(draftKey);
+	return value ?? undefined;
+}

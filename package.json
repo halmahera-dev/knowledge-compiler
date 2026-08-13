@@ -12,7 +12,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev worker",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "dev:client": "turbo run dev -F client",
@@ -28,7 +28,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "api:test": "cd apps/api && uv run pytest",
-    "seed": "cd apps/api && uv run python -m app.seed",
+    "seed": "cd apps/api && uv run python -m app.scripts.seed",
     "setup": "pnpm install && pnpm db:up && pnpm db:migrate && cd apps/api && uv sync --extra dev --extra local-embeddings",
     "test:ts": "turbo run test",
     "test:scripts": "node --test scripts/ apps/extension/",
@@ -36,7 +36,8 @@
     "ccloud": "node scripts/ccloud.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "pack:extension": "node scripts/pack-extension.mjs",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "dev:worker": "turbo run worker -F api"
   },
   "packageManager": "pnpm@9.5.0",
   "pnpm": {

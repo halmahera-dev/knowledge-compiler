@@ -19,18 +19,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - service: web
-            file: ./apps/web/Dockerfile
-            image: kc-web
+          - service: client
+            file: ./apps/client/Dockerfile
+            image: kc-client
+            # Baked into the browser bundle at build time, so they cannot be
+            # supplied by compose later. The Dockerfile fails the build when
+            # either is empty rather than shipping an image that sends every
+            # visitor to their own machine. Set them under
+            # Settings > Secrets and variables > Actions > Variables.
+            build-args: |
+              NEXT_PUBLIC_API_URL=${{ vars.PUBLIC_API_URL }}
+              NEXT_PUBLIC_MASTRA_URL=${{ vars.PUBLIC_MASTRA_URL }}
           - service: api
             file: ./apps/api/Dockerfile
             image: kc-api
+            build-args: ""
           - service: agent
             file: ./apps/agent/Dockerfile
             image: kc-agent
+            build-args: ""
           - service: migrate
             file: ./Dockerfile.migrate
             image: kc-migrate
+            build-args: ""
 
     steps:
       - name: Checkout Code
@@ -54,6 +65,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.file }}
+          build-args: ${{ matrix.build-args }}
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest

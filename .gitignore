@@ -49,6 +49,6 @@ yarn.lock
 # working copy is yours, the committed one is .mcp.json.example.
 .mcp.json
 
-# Built from apps/extension by scripts/pack-extension.mjs on every web build.
+# Built from apps/extension by scripts/pack-extension.mjs on every client build.
 # Committing it would let the download drift behind the source.
-apps/web/public/knowledge-compiler-extension.zip
+apps/client/public/knowledge-compiler-extension.zip

@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "../user-client";
+import { clearApiToken } from "../user-token";
 
 function slugify(name: string): string {
   const base =
@@ -49,6 +50,9 @@ export function WorkspaceOnboardingForm() {
       }
 
       await authClient.organization.setActive({ organizationId: data.id });
+      // The token predates the workspace that was just created and made active,
+      // so it still carries no workspaceId — every scoped call would 409.
+      clearApiToken();
       queryClient.clear();
       router.push("/");
       router.refresh();

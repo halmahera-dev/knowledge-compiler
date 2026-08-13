@@ -1,9 +1,10 @@
 import { EyeOff, Network, Pin, PinOff, X } from "lucide-react";
 import { IconButton, TextButton } from "./primitives";
-import type { LabelStyle } from "./style";
 import {
+	communityName,
+	communityOf,
+	communityStyleFor,
 	formatPropertyValue,
-	labelStyleFor,
 	nodeCaption,
 	primaryLabel,
 } from "./style";
@@ -19,7 +20,6 @@ type InspectorTarget =
 
 type GraphInspectorProps = {
 	target: InspectorTarget;
-	labelStyles: ReadonlyMap<string, LabelStyle>;
 	onClose: () => void;
 	onExpand: (id: string) => void;
 	onDismiss: (id: string) => void;
@@ -63,7 +63,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export function GraphInspector({
 	target,
-	labelStyles,
 	onClose,
 	onExpand,
 	onDismiss,
@@ -101,29 +100,38 @@ export function GraphInspector({
 			<div className="min-h-0 flex-1 overflow-y-auto">
 				{isNode ? (
 					<>
+						{/* The canvas colours by cluster now, so this says which one —
+						    and the label chips below stop borrowing that palette, which
+						    would claim the colour meant "Topic" or "Concept". */}
+						<SectionTitle>Cluster</SectionTitle>
+						<div className="flex items-center gap-2 px-3 pb-2">
+							<span
+								aria-hidden="true"
+								className="size-2.5 shrink-0 rounded-full"
+								style={{
+									backgroundColor: communityStyleFor(communityOf(target.node))
+										.fill,
+								}}
+							/>
+							<span className="font-medium text-xs">
+								{communityName(communityOf(target.node))}
+							</span>
+						</div>
+
 						<SectionTitle>Labels</SectionTitle>
 						<div className="flex flex-wrap gap-1.5 px-3 pb-1">
-							{target.node.labels.map((label) => {
-								const style = labelStyleFor(labelStyles, label);
-								const isPrimary = label === primaryLabel(target.node);
-
-								return (
-									<span
-										key={label}
-										className="inline-flex h-5 items-center rounded-full px-2 font-medium text-[11px]"
-										style={
-											isPrimary
-												? { backgroundColor: style.fill, color: style.text }
-												: {
-														border: `1px solid ${style.fill}`,
-														color: "inherit",
-													}
-										}
-									>
-										{label}
-									</span>
-								);
-							})}
+							{target.node.labels.map((label) => (
+								<span
+									key={label}
+									className={
+										label === primaryLabel(target.node)
+											? "inline-flex h-5 items-center rounded-full bg-muted px-2 font-medium text-[11px]"
+											: "inline-flex h-5 items-center rounded-full border border-border px-2 font-medium text-[11px] text-muted-foreground"
+									}
+								>
+									{label}
+								</span>
+							))}
 						</div>
 					</>
 				) : (

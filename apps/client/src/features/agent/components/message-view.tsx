@@ -14,10 +14,17 @@ import {
 	TooltipTrigger,
 } from "@kc/ui/components/tooltip";
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
-import { Copy, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle, Copy, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AnswerBody } from "@/features/agent/citation-markdown";
+import { ConsultedClaims } from "@/features/agent/components/consulted-claims";
 import { MessageInspector } from "@/features/agent/components/message-inspector";
-import { Response } from "@/features/agent/components/response";
 import { TextShimmer } from "@/features/agent/components/text-shimmer";
+import { UnsavedTurn } from "@/features/agent/components/unsaved-turn";
+import {
+	type CopilotUIMessage,
+	readEvidence,
+} from "@/features/agent/copilot-evidence";
+import type { UnsavedReason } from "@/features/agent/hooks/use-copilot-chat";
 
 type MessagePart = UIMessage["parts"][number];
 type ToolPart = ToolUIPart | DynamicToolUIPart;
@@ -45,9 +52,12 @@ function toolName(part: ToolPart) {
 export function MessageView({
 	message,
 	isStreaming,
+	unsaved,
 }: {
-	message: UIMessage;
+	message: CopilotUIMessage;
 	isStreaming: boolean;
+	/** Set only when this answer failed to reach the workspace's history. */
+	unsaved?: { reason: UnsavedReason; question: string; onRetry: () => void };
 }) {
 	const isUser = message.role === "user";
 	const textParts = message.parts.filter(isTextPart);
@@ -76,29 +86,9 @@ export function MessageView({
 	);
 	const inspectable = reasoning.length + tools.length > 0;
 
-	const citations = message.parts
-		.filter(
-			(part) =>
-				part.type === "tool-searchKnowledge" &&
-				"state" in part &&
-				part.state === "output-available",
-		)
-		.flatMap(
-			(part) =>
-				(
-					part as unknown as {
-						output: { claims: { label: string; pageTitle: string }[] };
-					}
-				).output.claims,
-		);
-
-	const usedTitles = [
-		...new Set(
-			[...text.matchAll(/\[c(\d+)\]/g)]
-				.map((m) => citations.find((c) => c.label === `c${m[1]}`)?.pageTitle)
-				.filter((title): title is string => Boolean(title)),
-		),
-	];
+	// One place knows how to read evidence off a message, whether it just streamed
+	// or was rebuilt from the workspace's history.
+	const evidence = readEvidence(message);
 
 	return (
 		<Message align="start" className="group">
@@ -109,13 +99,28 @@ export function MessageView({
 							<MessageInspector reasoning={reasoning} tools={tools} />
 						)}
 
+						{evidence.blocked ? (
+							// Relayed verbatim from the tool: a session that expired, a
+							// workspace not selected. Marked as not being an answer from
+							// the reader's own material, because it is not one.
+							<Badge variant="outline" className="w-fit gap-1.5">
+								<AlertTriangle className="size-3" />
+								Not answered from your workspace
+							</Badge>
+						) : evidence.refused && !isStreaming && hasText ? (
+							<Badge variant="outline" className="w-fit gap-1.5">
+								<AlertTriangle className="size-3" />
+								not in your notes
+							</Badge>
+						) : null}
+
 						{textParts.map((part, index) => (
-							<Response
-								isStreaming={isStreaming}
+							<AnswerBody
 								key={`${message.id}-text-${index}`}
-							>
-								{part.text}
-							</Response>
+								text={part.text}
+								evidence={evidence}
+								isStreaming={isStreaming}
+							/>
 						))}
 
 						{isStreaming && !hasText && (
@@ -158,15 +163,20 @@ export function MessageView({
 					</BubbleContent>
 				</Bubble>
 
-				{usedTitles.length > 0 && (
-					<MessageFooter className="flex-wrap gap-1.5">
-						{usedTitles.map((title) => (
-							<Badge key={title} variant="outline">
-								{title}
-							</Badge>
-						))}
+				{(evidence.claims.length > 0 || unsaved) && !isStreaming ? (
+					<MessageFooter className="flex flex-col items-start gap-1.5">
+						{evidence.claims.length > 0 ? (
+							<ConsultedClaims evidence={evidence} />
+						) : null}
+						{unsaved ? (
+							<UnsavedTurn
+								reason={unsaved.reason}
+								question={unsaved.question}
+								onRetry={unsaved.onRetry}
+							/>
+						) : null}
 					</MessageFooter>
-				)}
+				) : null}
 			</MessageContent>
 		</Message>
 	);

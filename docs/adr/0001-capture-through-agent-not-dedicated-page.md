@@ -1,6 +1,11 @@
 ---
-status: accepted
+status: superseded by ADR 0002
 ---
+
+> **Superseded.** Capture is its own page at `/capture`. See
+> [0002-capture-is-its-own-page.md](0002-capture-is-its-own-page.md) for what
+> changed and why. The text below is kept as the record of the decision that was
+> made, not as instructions to follow.
 
 # Capture happens through the Agent, not a dedicated Capture page
 
