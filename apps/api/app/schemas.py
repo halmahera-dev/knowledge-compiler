@@ -173,6 +173,29 @@ class RevertRequest(Wire):
     revision_no: int
 
 
+class DisputeSideOut(Wire):
+    stance: SourceStance
+    quote: str
+    source_title: str | None = None
+    source_url: str | None = None
+    saved_at: dt.datetime
+
+
+class DisputeOut(Wire):
+    """A claim two sources disagree about, with both passages.
+
+    Both sides travel together, always. A dispute rendered as one side plus a
+    warning badge is a summary that picked a winner and then apologised for it.
+    """
+
+    claim_id: uuid.UUID
+    text: str
+    section: str
+    page_slug: str
+    page_title: str
+    sides: list[DisputeSideOut] = Field(default_factory=list)
+
+
 # ─── graph ───────────────────────────────────────────────────────────────────
 
 
