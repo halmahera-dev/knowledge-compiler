@@ -12,12 +12,24 @@ the agent never sends a workspace id at all. There is nothing to tamper with.
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
+from sqlalchemy import func, select
 
 from app.api.deps import DbDep, EmbedderDep, ScopeDep
 from app.core.config import get_settings
 from app.core.ratelimit import check_hourly
-from app.schemas import CopilotSearchResponse, RetrievedClaimOut, ThemeOut
+from app.models import RawItem, WikiClaim, WikiPage
+from app.schemas import (
+    ContextPackOut,
+    CopilotSearchResponse,
+    DisputeOut,
+    DisputeSideOut,
+    PageBriefOut,
+    RetrievedClaimOut,
+    ThemeOut,
+)
 from app.services.communities import overview
+from app.services.context_pack import PageBrief, ThemeBrief, assemble
+from app.services.disputes import open_disputes
 from app.services.retrieval import DEFAULT_LIMIT, search_claims
 
 router = APIRouter(prefix="/api/v1/copilot", tags=["copilot"])
@@ -28,6 +40,11 @@ router = APIRouter(prefix="/api/v1/copilot", tags=["copilot"])
 #: workspace with forty of them would spend most of the prompt on the map
 #: instead of on the claims the answer has to rest on.
 MAX_THEMES = 8
+
+#: Contradictions carried in the briefing. Generous, because they are the
+#: product's point — but a workspace arguing with itself two hundred times needs
+#: the ledger page, not a longer prompt.
+MAX_DISPUTES = 20
 
 
 @router.get("/search", response_model=CopilotSearchResponse)
@@ -44,7 +61,12 @@ async def search(
     verbatim source quote — which is what lets an answer be checked rather than
     trusted.
     """
-    await check_hourly(scope, name="ask", limit=get_settings().ask_rate_limit_per_hour)
+    # A separate bucket from the briefing's. They count different things now: a
+    # briefing is one per turn, a search is one per quote pulled, and sharing a
+    # counter would make a turn that cites cost twice what a turn that does not.
+    await check_hourly(
+        scope, name="quote", limit=get_settings().ask_rate_limit_per_hour
+    )
 
     embedding: list[float] | None = None
     try:
@@ -91,4 +113,100 @@ async def search(
             )
             for c in claims
         ],
+    )
+
+
+@router.get("/context", response_model=ContextPackOut)
+async def context(db: DbDep, scope: ScopeDep) -> ContextPackOut:
+    """The briefing the agent starts a turn with, instead of searching.
+
+    Every figure here was computed when the reader saved something. Nothing in
+    this request reads a source document or embeds anything.
+
+    This carries the hourly ask limit, not `/search`. It used to sit there
+    because a search was issued once per question; now the briefing is, and a
+    limit on a call the agent may never make would not limit anything.
+    """
+    await check_hourly(scope, name="ask", limit=get_settings().ask_rate_limit_per_hour)
+
+    pages = (
+        await db.scalars(
+            select(WikiPage)
+            .where(WikiPage.workspace_id == scope.workspace_id)
+            .order_by(WikiPage.updated_at.desc())
+        )
+    ).all()
+
+    claim_count = (
+        await db.scalar(
+            select(func.count())
+            .select_from(WikiClaim)
+            .join(WikiPage, WikiPage.id == WikiClaim.page_id)
+            .where(
+                WikiPage.workspace_id == scope.workspace_id,
+                WikiClaim.revision_id == WikiPage.current_revision_id,
+            )
+        )
+    ) or 0
+
+    source_count = (
+        await db.scalar(
+            select(func.count())
+            .select_from(RawItem)
+            .where(RawItem.workspace_id == scope.workspace_id)
+        )
+    ) or 0
+
+    themes = [
+        ThemeBrief(title=view.title, summary=view.summary, page_count=view.page_count)
+        for view in await overview(db, scope)
+        if view.title and view.summary
+    ][:MAX_THEMES]
+
+    pack = assemble(
+        themes,
+        [
+            PageBrief(slug=page.slug, title=page.title, summary=page.summary)
+            for page in pages
+        ],
+    )
+
+    return ContextPackOut(
+        page_count=len(pages),
+        claim_count=claim_count,
+        source_count=source_count,
+        themes=[
+            ThemeOut(
+                title=theme.title,
+                summary=theme.summary,
+                node_count=0,
+                page_count=theme.page_count,
+            )
+            for theme in pack.themes
+        ],
+        pages=[
+            PageBriefOut(slug=page.slug, title=page.title, summary=page.summary)
+            for page in pack.pages
+        ],
+        disputes=[
+            DisputeOut(
+                claim_id=view.claim_id,
+                text=view.text,
+                section=view.section,
+                page_slug=view.page_slug,
+                page_title=view.page_title,
+                sides=[
+                    DisputeSideOut(
+                        stance=side.stance,
+                        quote=side.quote,
+                        source_title=side.source_title,
+                        source_url=side.source_url,
+                        saved_at=side.saved_at,
+                    )
+                    for side in view.sides
+                ],
+            )
+            for view in await open_disputes(db, scope, limit=MAX_DISPUTES)
+        ],
+        truncation=pack.truncation,
     )

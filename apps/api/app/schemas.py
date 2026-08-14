@@ -511,6 +511,30 @@ class CopilotSearchResponse(Wire):
     themes: list[ThemeOut] = Field(default_factory=list)
 
 
+class PageBriefOut(Wire):
+    slug: str
+    title: str
+    summary: str
+
+
+class ContextPackOut(Wire):
+    """Everything the copilot knows before it is asked anything.
+
+    Compiled on the write path and merely read here. `truncation` is set only
+    when pages were left out, and the agent is instructed to repeat it — an
+    agent that says "your notes do not cover that" about a page which simply did
+    not fit has told the reader something false in the product's own voice.
+    """
+
+    page_count: int
+    claim_count: int
+    source_count: int
+    themes: list[ThemeOut] = Field(default_factory=list)
+    pages: list[PageBriefOut] = Field(default_factory=list)
+    disputes: list[DisputeOut] = Field(default_factory=list)
+    truncation: str | None = None
+
+
 # ─── copilot conversations ───────────────────────────────────────────────────
 
 
