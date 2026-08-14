@@ -9,7 +9,17 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import chat, copilot, graph, internal, items, pages, runs, usage
+from app.api.routers import (
+    chat,
+    copilot,
+    disputes,
+    graph,
+    internal,
+    items,
+    pages,
+    runs,
+    usage,
+)
 from app.core.config import get_settings
 from app.core.db import dispose_engine
 from app.core.events import close_redis
@@ -109,6 +119,7 @@ app.include_router(pages.router)
 app.include_router(graph.router)
 app.include_router(runs.router)
 app.include_router(copilot.router)
+app.include_router(disputes.router)
 app.include_router(usage.router)
 app.include_router(internal.router)
 
