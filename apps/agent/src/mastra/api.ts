@@ -242,3 +242,95 @@ export async function storeCommunitySummary(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export interface ContextPack {
+  pageCount: number;
+  claimCount: number;
+  sourceCount: number;
+  themes: { title: string; summary: string; pageCount: number }[];
+  pages: { slug: string; title: string; summary: string }[];
+  disputes: {
+    text: string;
+    pageSlug: string;
+    pageTitle: string;
+    sides: { stance: string; quote: string; sourceTitle: string | null }[];
+  }[];
+  truncation: string | null;
+}
+
+/**
+ * The reader's compiled workspace, fetched with their own token.
+ *
+ * Not through `request()`: that carries the shared internal token, and this is a
+ * user-scoped route on purpose — the workspace comes from the caller's own
+ * claim, so the agent never names one and there is nothing to redirect.
+ *
+ * Returns null rather than throwing. A briefing that could not be fetched has to
+ * degrade to the old search-first behaviour, not take the answer down with it.
+ */
+export async function fetchContextPack(
+  token: string,
+): Promise<ContextPack | null> {
+  try {
+    const response = await fetch(
+      `${config.api.baseUrl}/api/v1/copilot/context`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!response.ok) return null;
+    return (await response.json()) as ContextPack;
+  } catch {
+    return null;
+  }
+}
+
+/** The pack as the model reads it. Prose, because it is read rather than parsed. */
+export function renderContextPack(pack: ContextPack | null): string {
+  if (!pack) {
+    return [
+      "YOUR BRIEFING IS UNAVAILABLE this turn — the workspace could not be",
+      "loaded. Search before you answer, and do not tell the reader their notes",
+      "are empty; you simply cannot see them right now.",
+    ].join(" ");
+  }
+
+  const lines: string[] = [
+    "THIS WORKSPACE, ALREADY COMPILED.",
+    "",
+    `${pack.pageCount} pages, ${pack.claimCount} claims, from ${pack.sourceCount} saved sources.`,
+  ];
+
+  if (pack.themes.length > 0) {
+    lines.push("", "AREAS THIS WORKSPACE COVERS");
+    for (const theme of pack.themes) {
+      lines.push(
+        `- ${theme.title} (${theme.pageCount} pages): ${theme.summary}`,
+      );
+    }
+  }
+
+  if (pack.pages.length > 0) {
+    lines.push("", "PAGES");
+    for (const page of pack.pages) {
+      lines.push(`- ${page.title} (/${page.slug}): ${page.summary}`);
+    }
+  }
+
+  if (pack.disputes.length > 0) {
+    lines.push("", "OPEN CONTRADICTIONS — sources that disagree, both kept");
+    for (const dispute of pack.disputes) {
+      lines.push(`- ${dispute.text} (on /${dispute.pageSlug})`);
+      for (const side of dispute.sides) {
+        lines.push(
+          `    ${side.stance}: "${side.quote}" — ${side.sourceTitle ?? "untitled source"}`,
+        );
+      }
+    }
+  }
+
+  if (pack.truncation) {
+    lines.push("", `NOTE: ${pack.truncation}`);
+  }
+
+  return lines.join("\n");
+}
