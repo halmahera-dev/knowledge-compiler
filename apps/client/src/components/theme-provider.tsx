@@ -47,12 +47,25 @@ function applyTheme(theme: Theme) {
     "(prefers-reduced-motion: reduce)",
   ).matches;
 
-  if (reduceMotion || !document.startViewTransition) {
+  // A hidden document cannot animate, and asking it to is not a no-op: the
+  // transition rejects with InvalidStateError. This fires without anyone
+  // touching the app — the system flips to dark at sunset while the tab sits in
+  // the background, the media listener below runs, and the swap lands on a
+  // document that is not being painted.
+  if (
+    reduceMotion ||
+    !document.startViewTransition ||
+    document.visibilityState !== "visible"
+  ) {
     swap();
     return;
   }
 
-  document.startViewTransition(swap);
+  // The rejection is handled rather than ignored. A transition that is
+  // superseded by the next one — two theme changes in quick succession — aborts
+  // the first, and an unhandled rejection surfaces to the reader as an
+  // application error when nothing about their theme actually failed.
+  document.startViewTransition(swap).finished.catch(() => {});
 }
 
 export function ThemeProvider({
