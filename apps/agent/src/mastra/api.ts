@@ -326,6 +326,15 @@ export function renderContextPack(pack: ContextPack | null): string {
         );
       }
     }
+  } else {
+    // Said rather than left out. Asked where its sources disagreed, a workspace
+    // with no contradictions made the model quote a sentence the briefing had
+    // never contained — it needed a true statement of absence and, finding
+    // none, wrote one. Absence has to be stated to be reportable.
+    lines.push(
+      "",
+      "OPEN CONTRADICTIONS: none. Nothing here currently contradicts anything else here.",
+    );
   }
 
   if (pack.truncation) {

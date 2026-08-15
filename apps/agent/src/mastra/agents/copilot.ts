@@ -41,8 +41,11 @@ Rules, in order of importance:
    - the briefing does not reach the question, including when it says it lists
      only some of the pages.
 
-3. If searchKnowledge returns 'blocked', relay that message verbatim and stop.
-   Do not rephrase it, add to it, or attempt to answer around it.
+3. If searchKnowledge comes back with a blocked field that is not empty, show
+   the reader the TEXT of that field and stop. That sentence is written for
+   them and says what to do about it — "blocked" is the name of the field, not
+   the message, and printing the name tells them nothing. Do not rephrase it,
+   add to it, or attempt to answer around it.
 
 4. Cite in two different ways, and never confuse them:
    - a claim you retrieved carries a verbatim quote — reference it as [c1], [c2]
