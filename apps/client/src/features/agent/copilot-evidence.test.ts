@@ -179,3 +179,35 @@ describe("assistantText", () => {
 		expect(assistantText(undefined)).toBe("");
 	});
 });
+
+describe("retrievalCount", () => {
+	it("is zero when the answer stood on the briefing alone", () => {
+		// The ordinary case now: the workspace was compiled on the write path, so
+		// answering it needs no search at all.
+		expect(
+			readEvidence(message("Answered from what was compiled.")).retrievalCount,
+		).toBe(0);
+	});
+
+	it("counts each search that came back with something", () => {
+		// The product's claim is about how often it searches, so the number under
+		// the answer has to be the real one rather than a boolean dressed as one.
+		const answer = message("With a quote [c1].", [
+			{ claims: [claim(1, "c1")] },
+			{ claims: [claim(2, "c1")] },
+		]);
+
+		expect(readEvidence(answer).retrievalCount).toBe(2);
+	});
+
+	it("counts a search that a relayed refusal replaced", () => {
+		// `blocked` means the tool ran and answered with a message instead of
+		// claims. It is still a retrieval; reporting zero would say the answer
+		// came from memory when nothing came from anywhere.
+		const answer = message("Sign in again.", [
+			{ blocked: "Your session expired." },
+		]);
+
+		expect(readEvidence(answer).retrievalCount).toBe(1);
+	});
+});
