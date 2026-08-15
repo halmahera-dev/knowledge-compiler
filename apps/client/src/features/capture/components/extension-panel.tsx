@@ -14,6 +14,7 @@ import {
 	CollapsibleTrigger,
 } from "@kc/ui/components/collapsible";
 import { ChevronDown, Download } from "lucide-react";
+import { TrustedExtensions } from "@/features/capture/components/trusted-extensions";
 
 /** The Web Store listing, once there is one. Empty until then. */
 const STORE_URL = "";
@@ -119,6 +120,11 @@ export function ExtensionPanel() {
 						</CollapsibleContent>
 					</Collapsible>
 				)}
+
+				{/* Outside the collapsible: this one is not optional. Without it the
+				    extension is refused, and the refusal looks exactly like being
+				    signed out. */}
+				<TrustedExtensions />
 			</CardContent>
 		</Card>
 	);

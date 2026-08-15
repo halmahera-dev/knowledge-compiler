@@ -61,12 +61,114 @@ export const trustedExtensionOrigins = (
 	.map((origin) => origin.trim())
 	.filter(Boolean);
 
+/**
+ * Origins that look like a browser extension, and nothing else.
+ *
+ * The gate for everything below: a request from the app itself never reaches
+ * the database, and no value that is not a `chrome-extension://` origin can
+ * ever be matched against a registered one.
+ */
+function isExtensionOrigin(origin: string): boolean {
+	return /^(chrome|moz)-extension:\/\/[a-zA-Z0-9-]+$/.test(origin);
+}
+
+/**
+ * Has *someone* vouched for the extension making this request?
+ *
+ * Returns the origin, or nothing. Deliberately not "which user vouched for it":
+ * this answers Better Auth's CSRF question, which is whether the origin is
+ * known to the installation at all. Whether *this* reader may read the response
+ * is a different question, answered by the CORS echo in the auth route — and
+ * that one is per-user.
+ *
+ * Splitting it that way keeps this path off the session table on every auth
+ * request, while the token still cannot be read by an extension its owner never
+ * registered.
+ */
+async function registeredExtensionOrigin(
+	request: Request | undefined,
+): Promise<string[]> {
+	// Better Auth types the request as optional: some internal calls have none,
+	// and a call with no request cannot be a cross-origin one.
+	const origin = request?.headers.get("origin") ?? "";
+
+	if (!isExtensionOrigin(origin)) {
+		return [];
+	}
+
+	try {
+		const known = await prisma.extensionOrigin.findFirst({
+			where: { origin },
+			select: { id: true },
+		});
+		return known ? [origin] : [];
+	} catch {
+		// A database that cannot be reached must not widen the allowlist.
+		return [];
+	}
+}
+
+/**
+ * The extensions one person has vouched for.
+ *
+ * This is the per-user half, used by the CORS echo: an extension may only read
+ * a token minted from a session whose owner registered it.
+ */
+export async function extensionOriginsForUser(
+	userId: string,
+): Promise<string[]> {
+	try {
+		const rows = await prisma.extensionOrigin.findMany({
+			where: { userId },
+			select: { origin: true },
+		});
+		return rows.map((row) => row.origin);
+	} catch {
+		return [];
+	}
+}
+
+/** Register one, idempotently. The person is vouching for their own install. */
+export async function registerExtensionOrigin(
+	userId: string,
+	origin: string,
+	label: string,
+): Promise<{ origin: string } | null> {
+	if (!isExtensionOrigin(origin)) {
+		return null;
+	}
+
+	await prisma.extensionOrigin.upsert({
+		where: { userId_origin: { userId, origin } },
+		create: { userId, origin, label },
+		update: { label },
+	});
+
+	return { origin };
+}
+
+export async function forgetExtensionOrigin(
+	userId: string,
+	origin: string,
+): Promise<void> {
+	await prisma.extensionOrigin.deleteMany({ where: { userId, origin } });
+}
+
 export function createAuth() {
 	return betterAuth({
 		database: prismaAdapter(prisma, {
 			provider: "postgresql",
 		}),
-		trustedOrigins: [env.CORS_ORIGIN, ...trustedExtensionOrigins],
+		// A function, not a list, because the list cannot be known ahead of time:
+		// every unpacked extension install gets its own id. Better Auth merges
+		// what this returns with its own static set (baseURL included), and it
+		// runs on any request carrying a cookie — which is exactly what the
+		// extension's credentialed token fetch is.
+		trustedOrigins: async (request) => [
+			env.CORS_ORIGIN,
+			...trustedExtensionOrigins,
+			...(await registeredExtensionOrigin(request)),
+		],
 		emailAndPassword: {
 			enabled: true,
 			minPasswordLength: 8,
@@ -94,7 +196,9 @@ export function createAuth() {
 					before: async (session) => {
 						const organizationId = await defaultOrganizationId(session.userId);
 						if (!organizationId) return;
-						return { data: { ...session, activeOrganizationId: organizationId } };
+						return {
+							data: { ...session, activeOrganizationId: organizationId },
+						};
 					},
 				},
 			},

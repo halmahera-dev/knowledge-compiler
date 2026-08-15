@@ -75,7 +75,12 @@ export type CompileEvent =
 			detail: string;
 			workspaceId: string;
 	  }
-	| { type: "run.succeeded"; runId: string; diff: CompileDiff; workspaceId: string }
+	| {
+			type: "run.succeeded";
+			runId: string;
+			diff: CompileDiff;
+			workspaceId: string;
+	  }
 	| { type: "run.failed"; runId: string; error: string; workspaceId: string };
 
 export function fetchRuns(): Promise<Run[]> {
