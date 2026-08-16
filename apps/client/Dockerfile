@@ -5,7 +5,7 @@ FROM node:20-slim AS builder
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/* \
-    && corepack enable && corepack prepare pnpm@10.8.1 --activate
+    && corepack enable && corepack prepare pnpm@9.5.0 --activate
 
 WORKDIR /app
 
@@ -79,7 +79,7 @@ FROM node:20-slim AS runner
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/* \
-    && corepack enable && corepack prepare pnpm@10.8.1 --activate
+    && corepack enable && corepack prepare pnpm@9.5.0 --activate
 WORKDIR /app
 COPY --from=builder /app ./
 

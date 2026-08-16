@@ -3,7 +3,7 @@ FROM node:20-slim
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/* \
-    && corepack enable && corepack prepare pnpm@10.8.1 --activate
+    && corepack enable && corepack prepare pnpm@9.5.0 --activate
 
 WORKDIR /app
 
