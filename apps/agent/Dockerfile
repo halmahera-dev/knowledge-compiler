@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 RUN corepack enable && corepack prepare pnpm@9.5.0 --activate
 
 WORKDIR /app
@@ -19,7 +19,7 @@ ENV SKIP_ENV_VALIDATION=1
 
 RUN pnpm --filter agent build
 
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 RUN corepack enable && corepack prepare pnpm@9.5.0 --activate
 WORKDIR /app
 COPY --from=builder /app ./
