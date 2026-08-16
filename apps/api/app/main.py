@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -24,6 +25,7 @@ from app.core.config import get_settings
 from app.core.db import dispose_engine
 from app.core.events import close_redis
 from app.core.queue import close_pool
+from app.core.security import AuthError, get_verifier
 from app.services.embeddings import EmbeddingError, resolve_provider
 
 log = structlog.get_logger(__name__)
@@ -68,6 +70,33 @@ async def lifespan(app: FastAPI):
                 "agent→API endpoints are protected by the published dev token. "
                 "Set INTERNAL_API_TOKEN in .env before exposing this API: "
                 'python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            ),
+        )
+
+    # Reach the JWKS once, at startup.
+    #
+    # Every token is verified against it, so when it is unreachable the API
+    # answers 401 to everything — and 401 reads as "sign in again", which is
+    # the one thing that cannot fix it. That is exactly how this failed in
+    # production: AUTH_BASE_URL was unset, so it defaulted to localhost:3000,
+    # which inside a container is the container itself. The reader saw
+    # themselves signed out on a page they had just signed in to, and the only
+    # trace was one info line per request.
+    #
+    # Not fatal. The cause is usually a variable someone can fix without a
+    # rebuild, and a crash-looping container hides the message saying so.
+    verifier = get_verifier()
+    try:
+        await asyncio.to_thread(verifier.warm)
+    except AuthError as exc:
+        log.error(
+            "jwks_unreachable",
+            url=verifier.jwks_url,
+            error=str(exc),
+            detail=(
+                "every request will answer 401 until this resolves. In Docker "
+                "this usually means AUTH_BASE_URL is unset or points at "
+                "localhost — set it to the same public URL as BETTER_AUTH_URL."
             ),
         )
 

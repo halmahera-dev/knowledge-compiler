@@ -21,7 +21,7 @@ import structlog
 from app.core import events
 from app.core.config import get_settings
 from app.core.db import dispose_engine, session_scope
-from app.core.queue import redis_settings
+from app.core.queue import QUEUE_NAME, redis_settings
 from app.main import configure_logging
 from app.models import CompileRun, RawItem
 
@@ -157,6 +157,11 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = redis_settings()
+    # The other half of the hash tag. `Worker.__init__` bound `arq:queue` as its
+    # default at import time, so leaving this out makes the worker listen on a
+    # queue the API never writes to — which presents as saves that queue
+    # successfully and then never compile.
+    queue_name = QUEUE_NAME
     # One compile at a time keeps ordering intuitive in the feed and avoids two
     # runs racing to create the same page.
     max_jobs = 4

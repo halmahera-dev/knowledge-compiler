@@ -85,8 +85,20 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd ~/knowledge-compiler
-            git pull origin main
+            # Reset, not pull. The checkout exists only to supply the compose
+            # file and the migration entrypoint — the code that runs comes from
+            # the images. A `git pull` refuses to run when someone has edited a
+            # tracked file on the box to test a fix, and it refuses *quietly
+            # enough* that the deploy carries on against a checkout frozen at
+            # whatever commit it was on. That happened: the server sat four
+            # commits behind while every deploy reported success.
+            #
+            # .env is gitignored, so this does not touch it.
+            git fetch --prune origin main
+            git reset --hard origin/main
+            git clean -fd -e '.env*'
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             export GH_OWNER="${{ github.repository_owner }}"
             docker compose -f docker-compose.prod.yml pull

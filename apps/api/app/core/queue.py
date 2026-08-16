@@ -16,6 +16,14 @@ from arq.connections import ArqRedis, RedisSettings
 
 from app.core.config import get_settings
 
+# Imported for its side effect, and imported here because this module is the
+# one thing both the API and the worker load before touching arq. Production
+# runs ElastiCache Serverless, which is a cluster; without this every enqueue
+# fails CROSSSLOT. See the module for why patching one place is not enough.
+from app.core.redis_keys import QUEUE_NAME, apply_hash_tag
+
+apply_hash_tag()
+
 log = structlog.get_logger(__name__)
 
 COMPILE_TASK = "compile_item"
@@ -44,7 +52,9 @@ def redis_settings() -> RedisSettings:
 async def get_pool() -> ArqRedis:
     global _pool
     if _pool is None:
-        _pool = await create_pool(redis_settings())
+        # Named explicitly: arq bound its own default when the module was
+        # imported, which is before the patch above could reach it.
+        _pool = await create_pool(redis_settings(), default_queue_name=QUEUE_NAME)
     return _pool
 
 

@@ -87,9 +87,32 @@ class JwtVerifier:
     def _get_client(self, *, force_refresh: bool = False) -> PyJWKClient:
         stale = time.monotonic() - self._client_created_at > self._settings.jwks_cache_seconds
         if self._client is None or force_refresh or stale:
-            self._client = PyJWKClient(self.jwks_url, cache_keys=True, lifespan=3600)
+            # Bounded on purpose. PyJWKClient uses urllib, whose default is no
+            # timeout at all — an auth service that accepts the connection and
+            # then stalls would hang a request thread indefinitely, and the
+            # startup probe with it.
+            self._client = PyJWKClient(
+                self.jwks_url, cache_keys=True, lifespan=3600, timeout=5
+            )
             self._client_created_at = time.monotonic()
         return self._client
+
+    def warm(self) -> None:
+        """Fetch the key set now, so an unreachable JWKS is found at startup.
+
+        Without this the first sign of a misconfigured `AUTH_BASE_URL` is a 401
+        on every request, which reads as an expired session and sends the
+        reader to sign in again — the one remedy that cannot work.
+
+        Blocking, and called from a thread: PyJWKClient uses urllib, and this
+        runs once rather than per request.
+        """
+        try:
+            self._get_client(force_refresh=True).get_jwk_set(refresh=True)
+        except Exception as exc:
+            raise AuthError(
+                f"could not reach the auth service at {self.jwks_url}"
+            ) from exc
 
     def _decode(self, token: str, *, force_refresh: bool) -> dict[str, Any]:
         client = self._get_client(force_refresh=force_refresh)
