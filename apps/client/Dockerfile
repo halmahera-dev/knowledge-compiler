@@ -72,7 +72,7 @@ ENV SKIP_ENV_VALIDATION=1
 
 RUN pnpm --filter client build
 
-FROM node:22slim AS runner
+FROM node:22-slim AS runner
 # Prisma's query engine links against libssl, which node:*-slim does not ship.
 # Without it Prisma guesses a build ("Defaulting to openssl-1.1.x") that may not
 # load at runtime — a warning at build time, a dead database client later.
