@@ -4,10 +4,10 @@ import {
 	Asteroid02Icon,
 	Coins01Icon,
 	Cursor02Icon,
-	FilePlusIcon,
 	HelpCircleIcon,
 	JusticeScale01Icon,
 	NotebookText,
+	Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -34,12 +34,16 @@ import NavUser from "@/features/user/components/nav-user";
  * stops a page from ever taking one of these slugs in the first place.
  */
 const APP_ROUTES = new Set([
-	"capture",
 	"agent",
 	"graph",
 	"gaps",
 	"disputes",
 	"ai-logs",
+	"settings",
+	// No route serves this any more — saving moved into the conversation — but a
+	// page may still hold the slug, claimed back when there was a page here.
+	// Dropping it would make that page the active "All Notes" destination.
+	"capture",
 ]);
 
 export function AppSidebar() {
@@ -64,17 +68,6 @@ export function AppSidebar() {
 							>
 								<HugeiconsIcon icon={NotebookText} />
 								All Notes
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								data-tour="nav-capture"
-								isActive={pathname === "/capture"}
-								render={<Link href="/capture" />}
-							>
-								<HugeiconsIcon icon={FilePlusIcon} />
-								Capture
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 
@@ -130,6 +123,17 @@ export function AppSidebar() {
 							>
 								<HugeiconsIcon icon={Coins01Icon} />
 								AI Logs
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								data-tour="nav-settings"
+								isActive={pathname === "/settings"}
+								render={<Link href="/settings" />}
+							>
+								<HugeiconsIcon icon={Settings02Icon} />
+								Settings
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					</SidebarGroupContent>

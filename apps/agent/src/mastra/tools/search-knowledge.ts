@@ -9,6 +9,7 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 
 import { config } from "../config";
+import { explain } from "./blocked";
 
 interface RetrievedClaim {
   claimId: string;
@@ -42,15 +43,6 @@ const requestContextSchema = z.object({
   /** The reader's own bearer token, forwarded from the web app. */
   token: z.string(),
 });
-
-/** The API's own message is not written for a reader, so each status gets one. */
-function explain(status: number): string {
-  if (status === 401) return "Your session has expired. Sign in again to ask.";
-  if (status === 403) return "You do not have access to this workspace.";
-  if (status === 409)
-    return "No workspace is selected. Create or choose one, then ask again.";
-  return "That question could not be answered right now.";
-}
 
 export const searchKnowledge = createTool({
   id: "searchKnowledge",

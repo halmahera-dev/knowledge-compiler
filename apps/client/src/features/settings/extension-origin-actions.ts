@@ -66,7 +66,7 @@ export async function trustExtension(input: string): Promise<OriginResult> {
 	}
 
 	await registerExtensionOrigin(userId, origin, "");
-	revalidatePath("/capture");
+	revalidatePath("/settings");
 
 	return { ok: true, message: `Trusted ${origin}` };
 }
@@ -78,7 +78,7 @@ export async function untrustExtension(origin: string): Promise<OriginResult> {
 	}
 
 	await forgetExtensionOrigin(userId, origin);
-	revalidatePath("/capture");
+	revalidatePath("/settings");
 
 	return { ok: true, message: "Removed." };
 }

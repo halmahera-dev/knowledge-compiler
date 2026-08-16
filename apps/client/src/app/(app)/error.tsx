@@ -45,11 +45,8 @@ export default function AppError({
 
 				<div className="mt-7 flex flex-wrap items-center gap-3">
 					<Button onClick={retry}>Try again</Button>
-					<Link
-						className={buttonVariants({ variant: "ghost" })}
-						href="/capture"
-					>
-						Back to capture
+					<Link className={buttonVariants({ variant: "ghost" })} href="/agent">
+						Back to the agent
 					</Link>
 				</div>
 			</div>

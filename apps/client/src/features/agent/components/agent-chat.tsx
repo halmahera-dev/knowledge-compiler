@@ -30,6 +30,7 @@ import {
 	type CopilotUIMessage,
 } from "@/features/agent/copilot-evidence";
 import { useCopilotChat } from "@/features/agent/hooks/use-copilot-chat";
+import { usePdfAttachments } from "@/features/agent/hooks/use-pdf-attachments";
 import {
 	hasPendingMessage,
 	takePendingMessage,
@@ -52,6 +53,7 @@ function AgentChatInner({
 		unsaved,
 		retrySave,
 	} = useCopilotChat(threadId, initialMessages);
+	const { attachments, attach, dismiss } = usePdfAttachments();
 	const isBusy = status === "submitted" || status === "streaming";
 
 	useEffect(() => {
@@ -136,6 +138,9 @@ function AgentChatInner({
 					onSubmit={handleSubmit}
 					value={input}
 					isBusy={isBusy}
+					attachments={attachments}
+					onAttach={attach}
+					onDismissAttachment={dismiss}
 				/>
 			</div>
 		</div>

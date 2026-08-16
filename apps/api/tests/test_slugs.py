@@ -50,16 +50,23 @@ class TestReservedSlugs:
         # A new top-level route added without touching this set is the failure
         # this catches.
         for route in (
-            "capture",
             "graph",
             "gaps",
             "agent",
             "ai-logs",
             "disputes",
+            "settings",
             "login",
             "register",
         ):
             assert route in RESERVED_SLUGS, f"/{route} is a real route but not reserved"
+
+    def test_a_retired_route_keeps_its_slug(self):
+        # /capture was removed when saving moved into the conversation. Freeing
+        # the slug would let a page compiled today take one that every page
+        # compiled before it was refused, so the same title would resolve
+        # differently depending on when it was saved.
+        assert "capture" in RESERVED_SLUGS
 
     @pytest.mark.asyncio
     async def test_a_page_titled_capture_does_not_take_the_capture_route(self):

@@ -34,18 +34,18 @@ describe("data-tour targets", () => {
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton
-							data-tour="nav-capture"
-							render={<a href="/capture">Capture</a>}
+							data-tour="nav-agent"
+							render={<a href="/agent">Agent</a>}
 						/>
 					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarProvider>,
 		);
 
-		expect(html).toContain('data-tour="nav-capture"');
+		expect(html).toContain('data-tour="nav-agent"');
 		// On the anchor itself, not on some wrapper: the highlight is drawn around
 		// the box the reader sees and clicks.
-		expect(html).toMatch(/<a[^>]*data-tour="nav-capture"/);
+		expect(html).toMatch(/<a[^>]*data-tour="nav-agent"/);
 	});
 
 	test("survives a dropdown trigger rendering a tooltipped menu button", () => {

@@ -14,8 +14,10 @@ records, and git history holds the code if a detail ever needs checking.
 | --- | --- | --- |
 | Compiled wiki index | `/` | `features/wiki/components/wiki-index.tsx` |
 | Compiled page, claims, sources, revisions, rollback | `/[slug]` | `features/wiki/components/wiki-page-view.tsx` |
-| Capture: paste, link, PDF, extension | `/capture` | `features/capture/components/capture-view.tsx` |
-| Live compile feed (SSE) | `/capture` | `features/capture/compile-stream.ts`, `hooks/use-compile-feed.ts` |
+| Capture: paste and link | `/agent`, `/agent/[id]` | `apps/agent/src/mastra/tools/save-to-library.ts` — the copilot offers, then calls `POST /api/v1/items` with the reader's own token |
+| Capture: PDF | `/agent`, `/agent/[id]` | `features/agent/hooks/use-pdf-attachments.ts` — paperclip and drag-drop, uploaded direct, no model involved |
+| Capture: extension | `/settings` | `features/settings/components/extension-panel.tsx` |
+| Live compile feed (SSE) | `/` | `features/capture/compile-stream.ts`, `hooks/use-compile-feed.ts` |
 | Copilot: cited answers over compiled claims | `/agent`, `/agent/[id]` | `features/agent/` |
 | Topic graph with typed edges and named clusters | `/graph` | `features/graph/` |
 | Knowledge gaps | `/gaps` | `features/gaps/` |
@@ -37,7 +39,8 @@ still resolve.
 | Copilot thread storage | The Python API stores threads; Mastra only answers | Mastra scopes memory per user, and a conversation belongs to the workspace |
 | Statistics dashboard | Deleted | Every figure derived from a sample-data constant, and the old app never had the page |
 | Response actions (copy / rate) | Copy works; rating is still a placeholder | See "Still open" |
-| Chat attachments and "web mode" | Both removed | The composer offered attachments, image generation, deep research and web search, all unwired and none of them things this copilot does; PDFs are saved on `/capture` |
+| Chat "web mode" | Removed | The composer offered image generation, deep research and web search, all unwired and none of them things this copilot does |
+| Chat attachments | Restored, wired | The paperclip now uploads a PDF straight to the API — see [ADR 0003](docs/adr/0003-capture-returns-to-the-conversation.md) |
 | AI usage logs placement | User-facing route | It is the reader's own spend, and the workspace is the boundary anyway |
 | Graph canvas state (pin / dismiss / layout) | Session-local | Persisting it would be a new capability, not a restoration |
 | Gap dismissal | One-way, matching the old app | |

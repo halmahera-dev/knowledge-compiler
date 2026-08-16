@@ -50,6 +50,6 @@ describe("safeRedirect", () => {
 	});
 
 	it("honours a caller-supplied fallback", () => {
-		expect(safeRedirect("https://evil.example", "/capture")).toBe("/capture");
+		expect(safeRedirect("https://evil.example", "/settings")).toBe("/settings");
 	});
 });

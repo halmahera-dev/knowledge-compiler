@@ -15,8 +15,9 @@ import { TOUR_STEPS, type TourStep } from "@/features/tour/steps";
  * its target in place and explains it beside it.
  *
  * Steps whose target is absent are skipped rather than shown pointing at
- * nothing — the capture form only exists on /capture, and on a phone the nav
- * lives in a drawer that is unmounted while shut.
+ * nothing — the composer only exists on /agent, the activity feed only on the
+ * home page, and on a phone the nav lives in a drawer that is unmounted while
+ * shut.
  */
 
 interface Box {

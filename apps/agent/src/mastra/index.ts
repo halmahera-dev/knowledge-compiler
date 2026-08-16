@@ -34,6 +34,7 @@ import { summariserAgent } from "./agents/summariser";
 import { fetchContextPack, renderContextPack, reportUsage } from "./api";
 import { authenticateToken, mapUserToResourceId } from "./auth";
 import { config } from "./config";
+import { lastUserText } from "./message-text";
 import { compileItemWorkflow } from "./workflows/compile-item";
 
 export const mastra = new Mastra({
@@ -104,6 +105,11 @@ export const mastra = new Mastra({
           // one, possibly several compiles ago.
           const briefing = renderContextPack(await fetchContextPack(token));
 
+          // The reader's own words, carried beside the token. saveToLibrary
+          // stores this verbatim instead of asking the model to repeat a
+          // pasted article back as a tool argument — see that tool's header.
+          const messageText = lastUserText(body.messages);
+
           const stream = await handleChatStream({
             mastra: c.get("mastra"),
             agentId: "copilotAgent",
@@ -111,7 +117,14 @@ export const mastra = new Mastra({
             params: {
               messages: body.messages,
               system: briefing,
-              requestContext: new RequestContext([["token", token]]),
+              requestContext: new RequestContext(
+                messageText
+                  ? [
+                      ["token", token],
+                      ["messageText", messageText],
+                    ]
+                  : [["token", token]],
+              ),
               memory: body.memory?.thread
                 ? {
                     thread: body.memory.thread,

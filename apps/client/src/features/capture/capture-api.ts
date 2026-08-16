@@ -1,18 +1,22 @@
 /**
- * The four ways into the knowledge base.
+ * The one way in that still goes through the browser.
  *
- * All four converge on the same artifact server-side, so nothing downstream
- * branches on how something was saved. The browser's only job is to hand over
- * the material and report what came back.
+ * Paste and link are saved by the copilot's saveToLibrary tool, from the
+ * conversation — there is no JSON create here any more, because a browser call
+ * would be a second path to the same endpoint with its own idea of what a
+ * successful save looks like.
+ *
+ * A PDF cannot go that way: binary does not travel through a prompt. So it
+ * uploads from here, straight to the API, and the model is not involved.
  */
 import { request, upload } from "@/lib/api-client";
-
-export type CaptureType = "paste" | "link" | "clip" | "pdf";
 
 export interface CreateItemResult {
 	itemId: string;
 	runId: string | null;
 	status: string;
+	/** What the server called it. Derived there, so the browser cannot guess it. */
+	title: string | null;
 	duplicate: boolean;
 	/** What a re-save collided with, so the refusal can be checked rather than trusted. */
 	duplicateOf: {
@@ -32,19 +36,6 @@ export interface RawItem {
 	status: string;
 	createdAt: string;
 	excerpt: string;
-}
-
-export function createItem(payload: {
-	// PDFs go to uploadPdf — this endpoint takes JSON and has no file to read.
-	captureType: Exclude<CaptureType, "pdf">;
-	content?: string;
-	sourceUrl?: string;
-	title?: string;
-}): Promise<CreateItemResult> {
-	return request<CreateItemResult>("/api/v1/items", {
-		method: "POST",
-		body: JSON.stringify(payload),
-	});
 }
 
 export function uploadPdf(file: File): Promise<CreateItemResult> {

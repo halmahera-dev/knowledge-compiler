@@ -13,7 +13,7 @@ import { CompileDemo } from "@/features/marketing/compile-demo";
  * inset panel the signed-in shell is (`SidebarInset` — `m-2 rounded-2xl border
  * bg-background`), every surface on it is a real `Card`, and the compile demo
  * is drawn in the same components as the compiled page it is advertising. The
- * transition from here to `/capture` should read as a change of content inside
+ * transition from here to `/agent` should read as a change of content inside
  * a frame that never moves, because someone who signs up ought to recognise the
  * app they arrive in.
  *

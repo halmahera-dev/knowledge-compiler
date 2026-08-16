@@ -14,7 +14,7 @@ import {
 	CollapsibleTrigger,
 } from "@kc/ui/components/collapsible";
 import { ChevronDown, Download } from "lucide-react";
-import { TrustedExtensions } from "@/features/capture/components/trusted-extensions";
+import { TrustedExtensions } from "@/features/settings/components/trusted-extensions";
 
 /** The Web Store listing, once there is one. Empty until then. */
 const STORE_URL = "";
@@ -30,10 +30,10 @@ const EXTENSION_ZIP = "/knowledge-compiler-extension.zip";
 /**
  * Saving from the page you are reading.
  *
- * This sits beside the three capture forms but is not a fourth capture type: it
- * is the tool that performs the first one for you. Clipping happens in the
- * browser, on a page this app never sees, so there is nothing here to fill in —
- * only something to install.
+ * Clipping happens in the browser, on a page this app never sees, so there is
+ * nothing here to fill in — only something to install and something to trust.
+ * It lives in settings rather than beside the composer because installing is a
+ * once-ever act, and the composer is used every day.
  *
  * There is no "Add to Chrome" button while the extension is unpublished, and
  * that is not an omission. Chrome removed inline installation in version 71 — a

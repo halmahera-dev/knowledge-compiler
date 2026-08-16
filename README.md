@@ -56,9 +56,9 @@ come from the same place as the session.
 
 | | |
 | --- | --- |
-| **Capture** | Four ways in — paste, link, clipped article, PDF — beside a live feed of what each save did to the knowledge base. |
+| **Capture** | Four ways in — paste, link, clipped article, PDF — all through the conversation, with a live feed of what each save did to the knowledge base. |
 | **Wiki** | Pages that wrote themselves. Every claim keeps the sentence it came from, and every compile is a revision you can roll back. |
-| **Ask** | Conversations with the copilot. Multi-turn, saved per workspace, and answered only from compiled pages — with the claims cited inline. |
+| **Ask** | Conversations with the copilot. Multi-turn, saved per workspace, and answered only from compiled pages — with the claims cited inline. Paste something instead of asking, and it offers to keep it. |
 | **Graph** | Typed edges (`extends`, `contradicts`, `prerequisite_of`, `example_of`) plus the same graph as a keyboard-navigable index, and a named summary of each cluster in it. |
 | **Gaps** | Prerequisites noticed while compiling: what your reading assumes but never covers. |
 | **Visual help** | A guided tour in the navbar that highlights real controls in place, and skips steps whose target is not on the current page. |

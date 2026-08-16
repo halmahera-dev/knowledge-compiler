@@ -39,19 +39,18 @@ repeat.
 
 ## Install
 
-1. Download it from the app's Capture page, under **Browser extension**, and
-   unzip it. (Or use `apps/extension` straight from the repository — same files.)
+1. Download it from the app's **Settings** page, under **Clip from the
+   browser**, and unzip it. (Or use `apps/extension` straight from the
+   repository — same files.)
 2. Open `chrome://extensions`, turn on **Developer mode**, choose **Load
    unpacked**, and pick the folder.
-3. Copy the extension **ID** from its card onto `BETTER_AUTH_TRUSTED_ORIGINS` in
-   the environment the app runs in, then restart the app:
-
-   ```
-   BETTER_AUTH_TRUSTED_ORIGINS="chrome-extension://<the id you just copied>"
-   ```
+3. Copy the extension **ID** from its card, and paste it into **Trust your
+   copy** on that same Settings page.
 
 Step 3 is not optional. The app will not hand a token to an origin it has not
-been told about, so without it every save fails at the mint.
+been told about, so without it every save fails at the mint. No restart is
+needed, and nothing goes in `.env`: Chrome gives every unpacked install its own
+id, so the list is per account rather than per deployment.
 
 **No address to configure.** The extension knows the environments this project
 runs in — `localhost`, `127.0.0.1` and the server — and works out which one to
@@ -121,11 +120,13 @@ fail silently.
    `:8000`.
 2. `chrome://extensions` → **Developer mode** on → **Load unpacked** →
    `apps/extension`.
-3. Copy the extension id from the card. Put it in `.env` at the repo root as
-   `BETTER_AUTH_TRUSTED_ORIGINS="chrome-extension://<id>"`.
-4. Restart the web app. *Not optional* — the value is read at boot, and without
-   it every save fails at the token mint.
-5. Sign in at `http://localhost:3000` and select a workspace. The extension has
+3. Sign in at `http://localhost:3000`, open **Settings**, and paste the
+   extension id from that card into **Trust your copy**.
+4. That is the whole of it — no restart, and nothing in `.env`. The list is read
+   per request and belongs to your account, so two people sharing one deployment
+   each trust their own copy. *Not optional*: without it every save fails at the
+   token mint.
+5. Select a workspace. The extension has
    no login of its own; it borrows this session, and a clip lands in whichever
    workspace is open here.
 6. Open any article, click the toolbar icon, press **Save and compile**.
@@ -133,12 +134,12 @@ fail silently.
    works, then settles green with a tick.
 7. Select a paragraph, right-click, **Save "…" to Knowledge Compiler**.
    → Same card. Under 80 characters it refuses, which is intended.
-8. Check `/capture` in the app. The save should appear in the feed, and
-   `/ai-logs` should show the embedding call it cost.
+8. Check the home page in the app. The save should appear in the activity feed,
+   and `/ai-logs` should show the embedding call it cost.
 
-If step 6 reports that the app will not issue a token, the id in `.env` does not
-match the one Chrome shows — the message names the id to add. If it says the app
-is unreachable, `pnpm dev` is not running.
+If step 6 reports that the app will not issue a token, the id trusted on
+Settings does not match the one Chrome shows — the message names the id to add.
+If it says the app is unreachable, `pnpm dev` is not running.
 
 ### Production
 

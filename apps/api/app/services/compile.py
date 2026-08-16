@@ -56,8 +56,13 @@ class CompileError(RuntimeError):
 #: Compiled pages live at `/{slug}`, and Next resolves a static segment before a
 #: dynamic one — so a page titled "Capture" would take the slug `capture` and
 #: then be unreachable forever, with nothing to indicate why. These are claimed
-#: up front and suffixed instead. "Graph", "Gaps" and "Capture" are all plausible
-#: titles for a knowledge base about this kind of software.
+#: up front and suffixed instead. "Graph", "Gaps" and "Settings" are all
+#: plausible titles for a knowledge base about this kind of software.
+#:
+#: "capture" is kept although that route was removed when saving moved into the
+#: conversation. Freeing it would let one workspace's page take a slug that
+#: every older workspace's page was refused, so the same title would resolve
+#: differently depending on when it was compiled.
 RESERVED_SLUGS = frozenset(
     {
         "agent",
@@ -70,6 +75,7 @@ RESERVED_SLUGS = frozenset(
         "landing",
         "login",
         "register",
+        "settings",
         "wiki",
         "workspace",
     }

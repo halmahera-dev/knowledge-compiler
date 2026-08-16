@@ -13,6 +13,10 @@ export interface TourStep {
  * everything else rests on — an account holds workspaces, a workspace holds
  * captures — because that is the part people get wrong when they arrive.
  *
+ * The first two steps and the activity step now sit on different routes than
+ * they used to: saving happens in the conversation, and what a save did shows
+ * up beside the pages it changed.
+ *
  * A step whose target is absent from the current page is skipped rather than
  * shown pointing at nothing, so this list can name things that only exist on
  * one route.
@@ -24,19 +28,14 @@ export const TOUR_STEPS: TourStep[] = [
 		body: "One account can keep several. Each has its own captures, wiki, graph and conversations, and nothing crosses between them.",
 	},
 	{
-		target: "nav-capture",
-		title: "Save what you read",
-		body: "A passage, a link, a whole article, or a PDF. Saving is the only thing you have to do.",
+		target: "nav-agent",
+		title: "Saving and asking are the same place",
+		body: "There is no separate capture form. Paste a link or an article into the conversation and it offers to keep it; ask a question and it answers from what you have kept.",
 	},
 	{
-		target: "capture-modes",
-		title: "Four ways in",
-		body: "Links are fetched and extracted server-side. PDFs are split when they are long, so nothing past the opening pages is quietly dropped. The extension clips the page you are already reading.",
-	},
-	{
-		target: "compile-feed",
-		title: "Watch it land",
-		body: "Every save produces a diff: which page it joined, which claims were added, what got disputed.",
+		target: "chat-input",
+		title: "Three ways in",
+		body: "Paste text, paste a link — fetched and extracted server-side — or attach a PDF with the paperclip. A long PDF is split, so nothing past the opening pages is quietly dropped.",
 	},
 	{
 		target: "nav-notes",
@@ -44,9 +43,9 @@ export const TOUR_STEPS: TourStep[] = [
 		body: "Pages write themselves from what you saved. Each claim keeps the sentence it came from, so you can check it.",
 	},
 	{
-		target: "nav-agent",
-		title: "Ask your own library",
-		body: "Answers come only from pages this workspace compiled, and cite the claims they rest on. Conversations are saved.",
+		target: "compile-feed",
+		title: "Watch it land",
+		body: "Every save produces a diff: which page it joined, which claims were added, what got disputed.",
 	},
 	{
 		target: "nav-graph",
@@ -62,5 +61,10 @@ export const TOUR_STEPS: TourStep[] = [
 		target: "nav-ai-logs",
 		title: "What it cost",
 		body: "Every model call, the step that ran it, and the tokens it moved. Add your own rates and it prices them too.",
+	},
+	{
+		target: "nav-settings",
+		title: "Clip from the browser",
+		body: "The extension saves the page you are already reading. Install it here, and paste its id so this account will accept its clips.",
 	},
 ];

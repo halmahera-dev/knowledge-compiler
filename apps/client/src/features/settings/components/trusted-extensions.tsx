@@ -8,7 +8,7 @@ import {
 	listMyExtensionOrigins,
 	trustExtension,
 	untrustExtension,
-} from "@/features/capture/extension-origin-actions";
+} from "@/features/settings/extension-origin-actions";
 
 /**
  * The extensions this reader has vouched for.

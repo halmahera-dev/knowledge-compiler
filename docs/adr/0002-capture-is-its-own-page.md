@@ -1,7 +1,12 @@
 ---
-status: accepted
+status: superseded by ADR 0003
 supersedes: ADR 0001
 ---
+
+> **Superseded.** Capture happens in the conversation again, and `/capture` is
+> deleted. See [0003-capture-returns-to-the-conversation.md](0003-capture-returns-to-the-conversation.md),
+> which answers the two objections below rather than dismissing them. The text
+> here is the record of a decision that was made, not instructions to follow.
 
 # Capture is its own page
 

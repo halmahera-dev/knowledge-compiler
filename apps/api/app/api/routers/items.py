@@ -112,6 +112,7 @@ async def create_item(
         item_id=saved.item_id,
         run_id=saved.run_id,
         status="succeeded" if saved.duplicate else "queued",
+        title=title,
         duplicate=saved.duplicate,
         duplicate_of=await _describe_duplicate(db, saved, scope),
     )
@@ -220,6 +221,10 @@ async def upload_pdf(
         item_id=first.item_id,
         run_id=first.run_id,
         status="succeeded" if not queued else "queued",
+        # The book's title, not the first part's — "Foo (part 1 of 9)" is an
+        # implementation detail of chunking, and naming the save that way would
+        # read as though eight parts had gone missing.
+        title=base_title,
         duplicate=not queued,
         duplicate_of=None if queued else await _describe_duplicate(db, first, scope),
         parts_queued=len(queued),

@@ -17,6 +17,7 @@ import { createSession } from "@/features/agent/chat-api";
 import { AgentThreadMenu } from "@/features/agent/components/agent-thread-menu";
 import { ChatInput } from "@/features/agent/components/chat-input";
 import { ChatSuggestions } from "@/features/agent/components/chat-suggestions";
+import { usePdfAttachments } from "@/features/agent/hooks/use-pdf-attachments";
 import {
 	setPendingMessage,
 	takeComposerDraft,
@@ -32,6 +33,11 @@ export default function AgentPage() {
 
 	const [starting, setStarting] = useState(false);
 	const [problem, setProblem] = useState<string | null>(null);
+
+	// Attaching works before a conversation exists: the upload goes straight to
+	// the API and has nothing to say to the model, so making the reader start a
+	// thread first would be ceremony for its own sake.
+	const { attachments, attach, dismiss } = usePdfAttachments();
 
 	// A question rescued from a conversation that was deleted mid-answer. Taken
 	// after mount rather than in a state initialiser: sessionStorage does not
@@ -97,6 +103,9 @@ export default function AgentPage() {
 							onSubmit={handleSubmit}
 							value={input}
 							isBusy={starting}
+							attachments={attachments}
+							onAttach={attach}
+							onDismissAttachment={dismiss}
 						/>
 						{problem ? (
 							<p className="text-destructive text-sm" role="alert">

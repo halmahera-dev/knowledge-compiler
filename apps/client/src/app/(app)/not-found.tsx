@@ -35,10 +35,7 @@ export default function AppNotFound() {
 					<Link className={buttonVariants()} href="/">
 						Back to your notes
 					</Link>
-					<Link
-						className={buttonVariants({ variant: "ghost" })}
-						href="/capture"
-					>
+					<Link className={buttonVariants({ variant: "ghost" })} href="/agent">
 						Save something
 					</Link>
 				</div>

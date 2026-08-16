@@ -76,7 +76,8 @@ export function CompileFeed() {
 					<Empty>
 						<EmptyTitle>Nothing compiled yet</EmptyTitle>
 						<EmptyDescription>
-							Save something above and you will watch it become a page.
+							Paste a link or an article to the agent, and you will watch it
+							become a page here.
 						</EmptyDescription>
 					</Empty>
 				) : (

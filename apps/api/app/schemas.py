@@ -72,6 +72,11 @@ class CreateItemResponse(Wire):
     item_id: uuid.UUID
     run_id: uuid.UUID | None
     status: RunStatus
+    #: The title the server derived. Returned because the caller does not know
+    #: it: `derive_title` reads the fetched page, or the first line of a paste,
+    #: and a caller that guessed would name the save something other than what
+    #: the library will show. The copilot reports this back verbatim.
+    title: str | None = None
     #: True when this content was already saved; nothing was queued.
     duplicate: bool = False
     #: What it matched. Present only on a duplicate, so the reader can check the

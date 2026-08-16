@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { QueryError, QuerySkeleton } from "@/components/query-states";
+import { CompileFeed } from "@/features/capture/components/compile-feed";
 import { TourButton } from "@/features/tour/tour-button";
 import { pagesQueryOptions } from "@/features/wiki/wiki-query-options";
 
@@ -42,7 +43,7 @@ function WikiList({ query }: { query: string }) {
 				<EmptyDescription>
 					{query
 						? "Try a different term, or clear the search."
-						: "Save something on the Capture page and a page will compile itself."}
+						: "Paste a link or an article to the agent and a page will compile itself."}
 				</EmptyDescription>
 
 				{/* An empty workspace is the one moment the tour is worth offering
@@ -50,7 +51,7 @@ function WikiList({ query }: { query: string }) {
 				    yet been anywhere that would have shown them the sidebar's button. */}
 				{query ? null : (
 					<EmptyContent className="flex-row gap-3">
-						<Link href="/capture" className={buttonVariants()}>
+						<Link href="/agent" className={buttonVariants()}>
 							Save your first thing
 						</Link>
 						<TourButton />
@@ -123,6 +124,12 @@ export function WikiIndex() {
 
 			<div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
 				<WikiList query={query} />
+
+				{/* Saving happens in the conversation now, so the place to watch a
+				    save land is the place the reading happens. Hidden while a search
+				    is running: the list above is then a filtered view, and an
+				    unfiltered activity log under it reads as part of the results. */}
+				{query ? null : <CompileFeed />}
 			</div>
 		</div>
 	);
