@@ -170,7 +170,7 @@ if (!window.__kcOverlayInstalled) {
   `;
 
   const host = document.createElement("div");
-  host.setAttribute("data-knowledge-compiler", "");
+  host.setAttribute("data-traversa", "");
   const root = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");

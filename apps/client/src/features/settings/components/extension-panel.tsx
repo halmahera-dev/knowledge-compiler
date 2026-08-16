@@ -25,7 +25,7 @@ const STORE_URL = "";
  * so it cannot fall behind the source it came from — a stale extension that
  * loads and then fails to save is worse than no download at all.
  */
-const EXTENSION_ZIP = "/knowledge-compiler-extension.zip";
+const EXTENSION_ZIP = "/traversa-extension.zip";
 
 /**
  * Saving from the page you are reading.
@@ -69,7 +69,7 @@ export function ExtensionPanel() {
 					href={STORE_URL || EXTENSION_ZIP}
 					{...(STORE_URL
 						? { target: "_blank", rel: "noopener noreferrer" }
-						: { download: "knowledge-compiler-extension.zip" })}
+						: { download: "traversa-extension.zip" })}
 				>
 					<Download />
 					{STORE_URL ? "Add to Chrome" : "Download the extension"}

@@ -26,17 +26,17 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU.selection,
-      title: 'Save "%s" to Knowledge Compiler',
+      title: 'Save "%s" to Traversa',
       contexts: ["selection"],
     });
     chrome.contextMenus.create({
       id: MENU.page,
-      title: "Save this page to Knowledge Compiler",
+      title: "Save this page to Traversa",
       contexts: ["page"],
     });
     chrome.contextMenus.create({
       id: MENU.link,
-      title: "Save this link to Knowledge Compiler",
+      title: "Save this link to Traversa",
       contexts: ["link"],
     });
   });
@@ -176,7 +176,7 @@ async function done(title, message, badge) {
   chrome.notifications?.create({
     type: "basic",
     iconUrl: "icon.png",
-    title: `Knowledge Compiler — ${title}`,
+    title: `Traversa — ${title}`,
     message,
   });
   // Cleared so the badge reflects the last action rather than accumulating.

@@ -47,6 +47,62 @@ export function CitationProvider({
 	);
 }
 
+/**
+ * A link to a page in this workspace, rather than to the internet.
+ *
+ * Only paths beginning with a single `/` qualify, checked here as well as in
+ * the plugin: `//evil.example` is a protocol-relative URL to another host and
+ * reads as a path at a glance, which is exactly the confusion worth refusing.
+ */
+export function isInternalPath(href: string): boolean {
+	return /^\/[^/\\]/.test(href) || href === "/";
+}
+
+function PageLink({
+	href,
+	children,
+}: {
+	href?: string;
+	children?: ReactNode;
+}) {
+	if (!href || !isInternalPath(href)) {
+		return <>{children}</>;
+	}
+
+	return (
+		<Link href={href} className="underline underline-offset-2">
+			{children}
+		</Link>
+	);
+}
+
+/**
+ * Rewrites `[Title](/slug)` into a `<pagelink>` node.
+ *
+ * Streamdown's own anchor treats every link as leaving the site: it cancels the
+ * navigation, asks "Open external link?", and then `window.open(href,
+ * "_blank")`. For a compiled page in this workspace all three are wrong — it is
+ * not external, the question is noise, and the answer opens a second tab onto
+ * the app the reader is already in.
+ *
+ * Internal links are moved to their own tag rather than by overriding `a`,
+ * because overriding `a` would take genuinely external links out of that safety
+ * prompt as well — and those are the ones a model wrote.
+ */
+function remarkPageLinks() {
+	return (tree: unknown) => {
+		visit(tree as never, "link", (node: { url?: string; data?: unknown }) => {
+			if (!node.url || !isInternalPath(node.url)) return;
+
+			node.data = {
+				...(node.data as object | undefined),
+				hName: "pagelink",
+				hProperties: { href: node.url },
+			};
+		});
+	};
+}
+
 /** Rewrites citation markers into a `<citation label="cN">` node. */
 function remarkCitations() {
 	return (tree: unknown) => {
@@ -139,14 +195,19 @@ function CitationMark({ label }: { label?: string }) {
 // streamed token.
 const CITATION_COMPONENTS = {
 	citation: CitationMark,
+	pagelink: PageLink,
 } as unknown as StreamdownProps["components"];
 
 const CITATION_REMARK_PLUGINS = [
 	...Object.values(defaultRemarkPlugins),
 	remarkCitations,
+	remarkPageLinks,
 ] as StreamdownProps["remarkPlugins"];
 
-const CITATION_ALLOWED_TAGS = { citation: ["label"] };
+const CITATION_ALLOWED_TAGS = {
+	citation: ["label"],
+	pagelink: ["href"],
+};
 
 /** The answer itself, with its citations resolved. */
 export function AnswerBody({

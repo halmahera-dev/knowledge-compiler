@@ -69,7 +69,7 @@ export const mastra = new Mastra({
       },
     },
   }),
-  logger: new PinoLogger({ name: "knowledge-compiler", level: "info" }),
+  logger: new PinoLogger({ name: "traversa", level: "info" }),
   server: {
     port: config.server.port,
     apiRoutes: [

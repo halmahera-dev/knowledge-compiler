@@ -132,7 +132,7 @@ fail silently.
 6. Open any article, click the toolbar icon, press **Save and compile**.
    → A card slides in at the bottom right of the *page*, bars sweeping while it
    works, then settles green with a tick.
-7. Select a paragraph, right-click, **Save "…" to Knowledge Compiler**.
+7. Select a paragraph, right-click, **Save "…" to Traversa**.
    → Same card. Under 80 characters it refuses, which is intended.
 8. Check the home page in the app. The save should appear in the activity feed,
    and `/ai-logs` should show the embedding call it cost.

@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = join(ROOT, "apps", "extension");
-const OUT = join(ROOT, "apps", "client", "public", "knowledge-compiler-extension.zip");
+const OUT = join(ROOT, "apps", "client", "public", "traversa-extension.zip");
 
 /** Files that belong to the repository, not to the extension. */
 const SKIP = new Set(["node_modules", "package.json", "README.md"]);

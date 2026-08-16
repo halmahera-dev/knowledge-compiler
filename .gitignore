@@ -51,4 +51,4 @@ yarn.lock
 
 # Built from apps/extension by scripts/pack-extension.mjs on every client build.
 # Committing it would let the download drift behind the source.
-apps/client/public/knowledge-compiler-extension.zip
+apps/client/public/traversa-extension.zip

@@ -1,4 +1,4 @@
-# Knowledge Compiler
+# Traversa
 
 Everything you read, compiled into one self-organizing wiki and topic graph.
 

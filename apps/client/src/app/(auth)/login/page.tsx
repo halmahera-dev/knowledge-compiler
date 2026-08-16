@@ -13,7 +13,7 @@ export default function LoginPage() {
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2 font-medium">
 						<HugeiconsIcon icon={IceCubesIcon} className="size-4" />
-						Knowledge Compiler
+						Traversa
 					</div>
 					{/* The way out. Without it the only exits from this page are the
               browser's Back button and signing in. */}

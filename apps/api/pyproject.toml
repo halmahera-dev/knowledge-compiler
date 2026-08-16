@@ -1,7 +1,7 @@
 [project]
 name = "kc-api"
 version = "0.1.0"
-description = "Knowledge Compiler API — capture, storage, embeddings, and the compile pipeline."
+description = "Traversa API — capture, storage, embeddings, and the compile pipeline."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",

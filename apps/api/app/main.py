@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Knowledge Compiler API",
+    title="Traversa API",
     description=(
         "Capture, compile, and serve a personal knowledge base. "
         "Compilation itself runs in the Mastra agent service; this API owns "

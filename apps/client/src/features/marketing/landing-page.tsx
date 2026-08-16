@@ -102,7 +102,7 @@ export function LandingPage() {
 					{/* Not the app header: no nav to pages you cannot reach yet. */}
 					<header className="mx-auto flex max-w-6xl items-center gap-2 px-5 py-4">
 						<HugeiconsIcon icon={IceCubesIcon} className="size-4" />
-						<span className="font-medium text-sm">Knowledge Compiler</span>
+						<span className="font-medium text-sm">Traversa</span>
 						<Link
 							href="/login"
 							className="ml-auto text-muted-foreground text-sm underline-offset-4 transition-colors hover:text-foreground hover:underline"
