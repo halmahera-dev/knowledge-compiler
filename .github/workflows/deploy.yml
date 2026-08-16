@@ -101,7 +101,38 @@ jobs:
             git clean -fd -e '.env*'
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             export GH_OWNER="${{ github.repository_owner }}"
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml run --rm migrate
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker image prune -f
+            COMPOSE="docker compose -f docker-compose.prod.yml"
+
+            # One service at a time, cleaning up between.
+            #
+            # The box has a 19G disk and these images are ~2.9G each, because
+            # each runner stage copies its whole build stage. Pulling all four
+            # at once needs room for two full generations at the same time —
+            # the old ones are still held by the running containers — and it
+            # ran out partway through extracting a layer, which failed the
+            # deploy and left the site on the previous release.
+            #
+            # Pulling one at a time never holds more than one image spare, and
+            # each service is only down for its own recreate rather than for
+            # the whole pull. `image prune -a` cannot touch an image a running
+            # container holds, so the services not being replaced are safe.
+            #
+            # The real fix is smaller images; this makes the deploy fit the
+            # disk we have.
+            $COMPOSE pull migrate
+            $COMPOSE run --rm migrate
+            docker image prune -af || true
+
+            for service in api agent client; do
+              $COMPOSE pull "$service"
+              if [ "$service" = "api" ]; then
+                # Same image, so they are replaced together.
+                $COMPOSE up -d --no-deps api worker
+              else
+                $COMPOSE up -d --no-deps "$service"
+              fi
+              docker image prune -af || true
+            done
+
+            $COMPOSE up -d --remove-orphans
+            df -h / | tail -1
