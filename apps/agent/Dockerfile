@@ -6,6 +6,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY packages ./packages
 COPY apps/agent ./apps/agent
+ARG DATABASE_URL=postgresql://placeholder@localhost:26257/placeholder
+ENV DATABASE_URL=$DATABASE_URL
 
 RUN pnpm install --frozen-lockfile
 
