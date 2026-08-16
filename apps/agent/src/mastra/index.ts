@@ -31,7 +31,7 @@ import { copilotAgent } from "./agents/copilot";
 import { extractorAgent } from "./agents/extractor";
 import { linkerAgent } from "./agents/linker";
 import { summariserAgent } from "./agents/summariser";
-import { reportUsage } from "./api";
+import { fetchContextPack, renderContextPack, reportUsage } from "./api";
 import { authenticateToken, mapUserToResourceId } from "./auth";
 import { config } from "./config";
 import { compileItemWorkflow } from "./workflows/compile-item";
@@ -79,7 +79,12 @@ export const mastra = new Mastra({
             .header("Authorization")
             ?.replace(/^Bearer\s+/i, "")
             .trim();
-          const user = token ? await authenticateToken(token) : null;
+          // Checked before the token is used rather than folded into the user
+          // lookup: everything downstream needs the token itself, and a
+          // conditional lookup leaves it typed as possibly absent.
+          if (!token) return c.json({ error: "Unauthorized" }, 401);
+
+          const user = await authenticateToken(token);
           if (!user) return c.json({ error: "Unauthorized" }, 401);
 
           const body = await c.req.json();
@@ -92,12 +97,20 @@ export const mastra = new Mastra({
               : undefined;
           const startedAt = Date.now();
 
+          // The briefing, fetched with the reader's own token and rebuilt every
+          // turn. Passed as `system` rather than prepended to `messages`: it is
+          // context for this turn only, and a pack that travelled in the message
+          // list would make turn ten stand on the workspace as it was at turn
+          // one, possibly several compiles ago.
+          const briefing = renderContextPack(await fetchContextPack(token));
+
           const stream = await handleChatStream({
             mastra: c.get("mastra"),
             agentId: "copilotAgent",
             version: "v5",
             params: {
               messages: body.messages,
+              system: briefing,
               requestContext: new RequestContext([["token", token]]),
               memory: body.memory?.thread
                 ? {

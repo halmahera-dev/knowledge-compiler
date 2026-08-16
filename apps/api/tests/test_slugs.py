@@ -49,7 +49,16 @@ class TestReservedSlugs:
     def test_every_static_route_is_claimed(self):
         # A new top-level route added without touching this set is the failure
         # this catches.
-        for route in ("capture", "graph", "gaps", "agent", "ai-logs", "login", "register"):
+        for route in (
+            "capture",
+            "graph",
+            "gaps",
+            "agent",
+            "ai-logs",
+            "disputes",
+            "login",
+            "register",
+        ):
             assert route in RESERVED_SLUGS, f"/{route} is a real route but not reserved"
 
     @pytest.mark.asyncio
@@ -84,3 +93,12 @@ class TestReservedSlugs:
     async def test_an_ordinary_title_still_suffixes_on_a_real_collision(self):
         db = StubSession(taken={"vector-search"})
         assert await _unique_slug(db, WIKI, "Vector Search") == "vector-search-2"
+
+    @pytest.mark.asyncio
+    async def test_a_page_titled_disputes_does_not_take_the_ledger_route(self):
+        # The contradiction ledger lives at /disputes, and "Disputes" is a
+        # plausible page title for a workspace that reads about anything
+        # contested.
+        db = StubSession()
+        assert await _unique_slug(db, WIKI, "Disputes") == "disputes-2"
+        assert "disputes" not in db.asked

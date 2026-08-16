@@ -6,6 +6,7 @@ import {
 	Cursor02Icon,
 	FilePlusIcon,
 	HelpCircleIcon,
+	JusticeScale01Icon,
 	NotebookText,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -32,7 +33,14 @@ import NavUser from "@/features/user/components/nav-user";
  * Kept in step with `RESERVED_SLUGS` in apps/api/app/services/compile.py, which
  * stops a page from ever taking one of these slugs in the first place.
  */
-const APP_ROUTES = new Set(["capture", "agent", "graph", "gaps", "ai-logs"]);
+const APP_ROUTES = new Set([
+	"capture",
+	"agent",
+	"graph",
+	"gaps",
+	"disputes",
+	"ai-logs",
+]);
 
 export function AppSidebar() {
 	const pathname = usePathname();
@@ -100,6 +108,17 @@ export function AppSidebar() {
 							>
 								<HugeiconsIcon icon={HelpCircleIcon} />
 								Gaps
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								data-tour="nav-disputes"
+								isActive={pathname === "/disputes"}
+								render={<Link href="/disputes" />}
+							>
+								<HugeiconsIcon icon={JusticeScale01Icon} />
+								Contradictions
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 

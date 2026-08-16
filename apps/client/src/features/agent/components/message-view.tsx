@@ -163,8 +163,17 @@ export function MessageView({
 					</BubbleContent>
 				</Bubble>
 
-				{(evidence.claims.length > 0 || unsaved) && !isStreaming ? (
+				{hasText && !isStreaming ? (
 					<MessageFooter className="flex flex-col items-start gap-1.5">
+						{/* The one place the product's own claim is visible to a reader.
+						    Zero is the ordinary case: the briefing was compiled when they
+						    saved things, so answering needed no search over the corpus. */}
+						<span className="text-muted-foreground text-xs">
+							{evidence.retrievalCount === 0
+								? "Answered from compiled memory — no retrieval"
+								: `Pulled ${evidence.retrievalCount} ${evidence.retrievalCount === 1 ? "quote" : "quotes"} from the source`}
+						</span>
+
 						{evidence.claims.length > 0 ? (
 							<ConsultedClaims evidence={evidence} />
 						) : null}

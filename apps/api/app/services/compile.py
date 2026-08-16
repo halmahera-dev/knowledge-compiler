@@ -64,6 +64,7 @@ RESERVED_SLUGS = frozenset(
         "ai-logs",
         "api",
         "capture",
+        "disputes",
         "gaps",
         "graph",
         "landing",

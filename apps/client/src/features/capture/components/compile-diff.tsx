@@ -4,16 +4,14 @@ import { Badge } from "@kc/ui/components/badge";
 import { Button } from "@kc/ui/components/button";
 import { Card, CardContent } from "@kc/ui/components/card";
 import { cn } from "@kc/ui/lib/utils";
-import {
-	AlertTriangle,
-	Clock,
-	GitMerge,
-	Plus,
-	RotateCcw,
-} from "lucide-react";
+import { AlertTriangle, Clock, GitMerge, Plus, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import type { CompileDiff, EdgeRelation, Run } from "@/features/capture/run-api";
+import type {
+	CompileDiff,
+	EdgeRelation,
+	Run,
+} from "@/features/capture/run-api";
 import { STAGES } from "@/features/capture/run-api";
 
 /**
@@ -73,9 +71,7 @@ export function DiffCard({ diff }: { diff: CompileDiff }) {
 						rev {diff.page.revisionNo}
 					</span>
 					{diff.claimsDisputed > 0 ? (
-						<Badge variant="destructive">
-							{diff.claimsDisputed} disputed
-						</Badge>
+						<Badge variant="destructive">{diff.claimsDisputed} disputed</Badge>
 					) : null}
 				</div>
 
@@ -153,7 +149,10 @@ export function PendingCard({
 					<span className="font-medium">{title ?? "Compiling…"}</span>
 				</div>
 
-				<ol className="mt-4 flex items-center gap-1.5" aria-label="Compile progress">
+				<ol
+					className="mt-4 flex items-center gap-1.5"
+					aria-label="Compile progress"
+				>
 					{STAGES.map((stage, i) => (
 						<li key={stage} className="flex flex-1 flex-col gap-1.5">
 							<span
@@ -295,7 +294,5 @@ export function RunCard({
 		);
 	}
 
-	return (
-		<PendingCard title={run.itemTitle} step="extract" detail="Queued" />
-	);
+	return <PendingCard title={run.itemTitle} step="extract" detail="Queued" />;
 }

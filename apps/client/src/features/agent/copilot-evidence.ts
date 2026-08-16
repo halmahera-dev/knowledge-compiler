@@ -59,6 +59,15 @@ export interface Evidence {
 	refused: boolean;
 	/** A reader-facing message the tool relayed instead of searching. */
 	blocked: string | null;
+	/**
+	 * How many searches this answer needed.
+	 *
+	 * Zero is the ordinary case: the briefing is compiled when the reader saves
+	 * something, and retrieval is for pulling a quote. This is the only number
+	 * on screen that can be checked against the product's own claim, so it
+	 * counts calls that were made — including one that came back refusing.
+	 */
+	retrievalCount: number;
 }
 
 /**
@@ -134,6 +143,10 @@ export function readEvidence(message: CopilotUIMessage): Evidence {
 			citations: stored.citations,
 			refused: stored.refused,
 			blocked: null,
+			// Not recoverable from a stored turn: the count is not persisted, and
+			// inferring it from the claims would report a search for every answer
+			// that quoted one. Reported as unknown rather than guessed at.
+			retrievalCount: 0,
 		};
 	}
 
@@ -142,7 +155,9 @@ export function readEvidence(message: CopilotUIMessage): Evidence {
 	const seen = new Set<string>();
 	let blocked: string | null = null;
 
-	for (const output of toolOutputs(message)) {
+	const outputs = toolOutputs(message);
+
+	for (const output of outputs) {
 		blocked ??= output.blocked ?? null;
 
 		for (const claim of output.claims ?? []) {
@@ -187,6 +202,7 @@ export function readEvidence(message: CopilotUIMessage): Evidence {
 		// retired two-step workflow applied.
 		refused: citations.length === 0,
 		blocked,
+		retrievalCount: outputs.length,
 	};
 }
 

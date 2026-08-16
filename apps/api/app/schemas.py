@@ -173,6 +173,29 @@ class RevertRequest(Wire):
     revision_no: int
 
 
+class DisputeSideOut(Wire):
+    stance: SourceStance
+    quote: str
+    source_title: str | None = None
+    source_url: str | None = None
+    saved_at: dt.datetime
+
+
+class DisputeOut(Wire):
+    """A claim two sources disagree about, with both passages.
+
+    Both sides travel together, always. A dispute rendered as one side plus a
+    warning badge is a summary that picked a winner and then apologised for it.
+    """
+
+    claim_id: uuid.UUID
+    text: str
+    section: str
+    page_slug: str
+    page_title: str
+    sides: list[DisputeSideOut] = Field(default_factory=list)
+
+
 # ─── graph ───────────────────────────────────────────────────────────────────
 
 
@@ -486,6 +509,30 @@ class CopilotSearchResponse(Wire):
     #: The workspace's named clusters, largest first. Independent of the query:
     #: this is the map of what is here, not a retrieval result.
     themes: list[ThemeOut] = Field(default_factory=list)
+
+
+class PageBriefOut(Wire):
+    slug: str
+    title: str
+    summary: str
+
+
+class ContextPackOut(Wire):
+    """Everything the copilot knows before it is asked anything.
+
+    Compiled on the write path and merely read here. `truncation` is set only
+    when pages were left out, and the agent is instructed to repeat it — an
+    agent that says "your notes do not cover that" about a page which simply did
+    not fit has told the reader something false in the product's own voice.
+    """
+
+    page_count: int
+    claim_count: int
+    source_count: int
+    themes: list[ThemeOut] = Field(default_factory=list)
+    pages: list[PageBriefOut] = Field(default_factory=list)
+    disputes: list[DisputeOut] = Field(default_factory=list)
+    truncation: str | None = None
 
 
 # ─── copilot conversations ───────────────────────────────────────────────────

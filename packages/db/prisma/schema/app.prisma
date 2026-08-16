@@ -603,3 +603,37 @@ model GraphCommunity {
 
   @@schema("kc")
 }
+
+/// A browser extension a person has vouched for.
+///
+/// Every unpacked install gets its own `chrome-extension://<id>` origin, so the
+/// allowlist cannot live in configuration — one env value trusts exactly one
+/// machine, and the id changes again the moment the folder is repacked.
+///
+/// Registration requires a signed-in session, which is the whole security
+/// argument: a malicious extension cannot add itself, because adding requires
+/// the person to paste an id into their own account. That is why this exists
+/// instead of trusting `chrome-extension://*`, which would let any installed
+/// extension turn a live session into a workspace token.
+model ExtensionOrigin {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// auth.User.id. No foreign key, matching how workspace ids are held here —
+  /// the auth tables are provisioned by Better Auth and not owned by these
+  /// migrations.
+  userId String @map("user_id")
+  /// The full origin, `chrome-extension://<id>`. Stored whole rather than as a
+  /// bare id because it is compared against the browser's `Origin` header, and
+  /// a bare id silently matches nothing.
+  origin String
+
+  /// What the person called it, so a list of opaque ids is readable later.
+  label String @default("")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([userId, origin], map: "extension_origins_user_origin_key")
+  @@index([origin], map: "extension_origins_origin_idx")
+  @@map("extension_origins")
+
+  @@schema("kc")
+}
