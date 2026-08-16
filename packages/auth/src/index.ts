@@ -177,8 +177,8 @@ export function createAuth() {
 		baseURL: env.BETTER_AUTH_URL,
 		advanced: {
 			defaultCookieAttributes: {
-				sameSite: env.BETTER_AUTH_URL.startsWith("https") ? "none" : "lax",
-				secure: env.BETTER_AUTH_URL.startsWith("https"),
+				sameSite: env.BETTER_AUTH_URL?.startsWith("https") ? "none" : "lax",
+				secure: env.BETTER_AUTH_URL?.startsWith("https") ?? false,
 				httpOnly: true,
 			},
 		},
