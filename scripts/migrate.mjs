@@ -26,7 +26,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // The schema and its migrations moved into @kc/db when apps/web was retired.
@@ -76,12 +76,50 @@ function stripVectorIndexDrops(sql) {
   return { sql: out.replace(/\n{3,}/g, "\n\n").trim(), stripped };
 }
 
+/**
+ * The schema Prisma keeps its migration history in.
+ *
+ * Everything this project owns lives in `kc` (see `schemas` in schema.prisma),
+ * and `_prisma_migrations` was created there. But Prisma reads the history
+ * table from the connection's default schema, which is `public` unless the URL
+ * says otherwise — and `public` belongs to an unrelated application sharing
+ * this database, so it is deliberately empty of ours.
+ *
+ * Left alone, `migrate deploy` looks in `public`, finds no history table, and
+ * fails with "Invariant violation: migration persistence is not initialized" —
+ * a message that names neither the schema it looked in nor the one it should
+ * have. In production that failed the deploy, and the workaround had been to
+ * apply migrations by hand and record them afterwards.
+ */
+const MIGRATION_SCHEMA = "kc";
+
+/** The connection URL with `schema=kc`, unless it already names one. */
+export function withMigrationSchema(url) {
+  if (!url) return url;
+
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has("schema")) {
+      parsed.searchParams.set("schema", MIGRATION_SCHEMA);
+    }
+    return parsed.toString();
+  } catch {
+    // An unparseable URL is Prisma's problem to report, not this script's —
+    // its error names the variable, which is more use than one from here.
+    return url;
+  }
+}
+
 function prisma(args, { capture = false } = {}) {
   const res = spawnSync("npx", ["prisma", ...args], {
     cwd: DB_PACKAGE,
     encoding: "utf8",
     shell: process.platform === "win32",
     stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: withMigrationSchema(process.env.DATABASE_URL),
+    },
   });
   const out = (res.stdout ?? "") + (res.stderr ?? "");
   // Through `npx` on Windows the CLI's exit code does not always propagate, so a
@@ -173,18 +211,22 @@ function verifyVectorIndexes() {
   }
 }
 
-const [command, ...rest] = process.argv.slice(2);
+// Guarded so the helpers above can be imported by a test without the import
+// itself running a migration against whatever DATABASE_URL happens to be set.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const [command, ...rest] = process.argv.slice(2);
 
-switch (command) {
-  case undefined:
-  case "deploy":
-    deploy();
-    verifyVectorIndexes();
-    break;
-  case "new":
-    authorNew(rest.join(" "));
-    break;
-  default:
-    console.error(`Unknown command "${command}". Use: deploy | new <name>`);
-    process.exit(1);
+  switch (command) {
+    case undefined:
+    case "deploy":
+      deploy();
+      verifyVectorIndexes();
+      break;
+    case "new":
+      authorNew(rest.join(" "));
+      break;
+    default:
+      console.error(`Unknown command "${command}". Use: deploy | new <name>`);
+      process.exit(1);
+  }
 }
