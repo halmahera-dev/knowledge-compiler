@@ -1,3 +1,12 @@
+"use client";
+
+import { ChevronDown } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@kc/ui/components/dropdown-menu";
 import { Chip } from "./primitives";
 import type { LabelStyle } from "./style";
 
@@ -85,25 +94,62 @@ export function GraphLegend({
 		onFocusChange(isActive(focus, kind, value) ? null : { kind, value });
 	};
 
+	const activeCommunity = communities.find((c) =>
+		isActive(focus, "community", c.name),
+	);
+
 	return (
 		<div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5">
-			{communities.map(({ name, count, style }) => (
-				<Chip
-					key={`community-${name}`}
-					active={isActive(focus, "community", name)}
-					swatch={style.fill}
-					count={count}
-					aria-pressed={isActive(focus, "community", name)}
-					onClick={() => toggle("community", name)}
-				>
-					{name}
-				</Chip>
-			))}
+			{/* Communities dropdown */}
+			{communities.length > 0 ? (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-2 font-medium text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+						>
+							{activeCommunity ? (
+								<>
+									<span
+										aria-hidden="true"
+										className="size-2.5 shrink-0 rounded-full"
+										style={{ backgroundColor: activeCommunity.style.fill }}
+									/>
+									<span className="truncate">{activeCommunity.name}</span>
+									<span className="tabular-nums opacity-60">
+										{activeCommunity.count}
+									</span>
+								</>
+							) : (
+								<span>Communities</span>
+							)}
+							<ChevronDown className="size-3 shrink-0 opacity-60" />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" sideOffset={4}>
+						{communities.map(({ name, count, style }) => (
+							<DropdownMenuItem
+								key={`community-${name}`}
+								onClick={() => toggle("community", name)}
+							>
+								<span
+									aria-hidden="true"
+									className="size-2.5 shrink-0 rounded-full"
+									style={{ backgroundColor: style.fill }}
+								/>
+								<span className="flex-1 truncate">{name}</span>
+								<span className="tabular-nums opacity-60">{count}</span>
+							</DropdownMenuItem>
+						))}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			) : null}
 
 			{communities.length > 0 && types.length > 0 ? (
 				<span aria-hidden="true" className="mx-0.5 h-4 w-px bg-border" />
 			) : null}
 
+			{/* Type chips stay inline */}
 			{types.map(({ type, count }) => (
 				<Chip
 					key={`type-${type}`}

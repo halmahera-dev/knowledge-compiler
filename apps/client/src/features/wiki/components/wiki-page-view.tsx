@@ -36,6 +36,13 @@ import { isSignedOut } from "@/lib/api-client";
  * than picking one.
  */
 
+function slugify(text: string): string {
+	return text
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/(^-|-$)/g, "");
+}
+
 function ClaimRow({ claim }: { claim: Claim }) {
 	return (
 		<li className="py-3">
@@ -64,7 +71,7 @@ function ClaimRow({ claim }: { claim: Claim }) {
 								{source.stance}
 							</span>
 							<p className="text-muted-foreground italic leading-relaxed">
-								“{source.quote}”
+								"{source.quote}"
 							</p>
 							{source.sourceUrl ? (
 								<a
@@ -85,6 +92,40 @@ function ClaimRow({ claim }: { claim: Claim }) {
 				</ul>
 			) : null}
 		</li>
+	);
+}
+
+function TableOfContents({
+	sections,
+}: {
+	sections: { heading: string }[];
+}) {
+	return (
+		<nav aria-label="Contents" className="sticky top-4">
+			<p className="mb-2 font-medium text-xs uppercase tracking-wider">
+				Contents
+			</p>
+			<ul className="flex flex-col gap-1 text-sm">
+				{sections.map((section) => (
+					<li key={section.heading}>
+						<a
+							href={`#${slugify(section.heading)}`}
+							className="text-muted-foreground hover:text-foreground hover:underline"
+						>
+							{section.heading}
+						</a>
+					</li>
+				))}
+				<li>
+					<a
+						href="#claims"
+						className="text-muted-foreground hover:text-foreground hover:underline"
+					>
+						Claims
+					</a>
+				</li>
+			</ul>
+		</nav>
 	);
 }
 
@@ -147,140 +188,153 @@ export function WikiPageView({ slug }: { slug: string }) {
 			</PageHeader>
 
 			<div className="min-h-0 flex-1 overflow-y-auto px-4 pb-12">
-				<article className="mx-auto max-w-3xl">
-					<h1 className="font-semibold text-3xl tracking-tight">
-						{page.data.title}
-					</h1>
-					<p className="mt-2 text-lg text-muted-foreground leading-relaxed">
-						{page.data.summary}
-					</p>
+				<div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-[12rem_1fr]">
+					{/* Table of Contents — hidden on mobile */}
+					<aside className="hidden md:block">
+						<TableOfContents sections={page.data.sections} />
+					</aside>
 
-					<Separator className="my-6" />
+					{/* Article body */}
+					<article className="min-w-0">
+						<h1 className="font-semibold text-3xl tracking-tight">
+							{page.data.title}
+						</h1>
+						<p className="mt-2 text-lg text-muted-foreground leading-relaxed">
+							{page.data.summary}
+						</p>
 
-					{page.data.sections.map((section) => (
-						<section key={section.heading} className="mb-6">
-							<h2 className="mb-2 font-semibold text-xl">{section.heading}</h2>
-							<div className="whitespace-pre-wrap leading-relaxed">
-								{section.body}
-							</div>
-						</section>
-					))}
+						<Separator className="my-6" />
 
-					<Card className="mt-8">
-						<CardHeader>
-							<CardTitle className="text-base">
-								Claims ({page.data.claims.length})
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{page.data.claims.length === 0 ? (
-								<p className="text-muted-foreground text-sm">
-									No claims recorded on this page yet.
-								</p>
-							) : (
-								<ul className="divide-y divide-border">
-									{page.data.claims.map((claim) => (
-										<ClaimRow key={claim.id} claim={claim} />
-									))}
-								</ul>
-							)}
-						</CardContent>
-					</Card>
+						{page.data.sections.map((section) => (
+							<section
+								key={section.heading}
+								id={slugify(section.heading)}
+								className="mb-6 scroll-mt-16"
+							>
+								<h2 className="mb-2 font-semibold text-xl">
+									{section.heading}
+								</h2>
+								<div className="whitespace-pre-wrap leading-relaxed">
+									{section.body}
+								</div>
+							</section>
+						))}
 
-					<Accordion className="mt-6">
-						<AccordionItem value="sources">
-							<AccordionTrigger>
-								Sources ({page.data.sources.length})
-							</AccordionTrigger>
-							<AccordionContent>
-								<ul className="flex flex-col gap-2">
-									{page.data.sources.map((source) => (
-										<li key={source.id} className="text-sm">
-											{source.sourceUrl ? (
-												<a
-													href={source.sourceUrl}
-													target="_blank"
-													rel="noopener noreferrer"
-													className="underline underline-offset-2"
-												>
-													{source.title ?? source.sourceUrl}
-												</a>
-											) : (
-												<span>{source.title ?? "Untitled"}</span>
-											)}
-											<span className="ml-2 text-muted-foreground text-xs">
-												{source.captureType}
-											</span>
-										</li>
-									))}
-								</ul>
-							</AccordionContent>
-						</AccordionItem>
+						<Card id="claims" className="mt-8 scroll-mt-16">
+							<CardHeader>
+								<CardTitle className="text-base">
+									Claims ({page.data.claims.length})
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								{page.data.claims.length === 0 ? (
+									<p className="text-muted-foreground text-sm">
+										No claims recorded on this page yet.
+									</p>
+								) : (
+									<ul className="divide-y divide-border">
+										{page.data.claims.map((claim) => (
+											<ClaimRow key={claim.id} claim={claim} />
+										))}
+									</ul>
+								)}
+							</CardContent>
+						</Card>
 
-						<AccordionItem value="revisions">
-							<AccordionTrigger>
-								History ({page.data.revisions.length})
-							</AccordionTrigger>
-							<AccordionContent>
-								<ul className="flex flex-col gap-2">
-									{page.data.revisions.map((revision) => (
-										<li
-											key={revision.id}
-											className="flex items-center gap-3 text-sm"
-										>
-											<span className="font-mono tabular-nums">
-												r{revision.revisionNo}
-											</span>
-											<span className="text-muted-foreground">
-												{revision.action ?? "compile"}
-											</span>
-											<span className="text-muted-foreground text-xs">
-												{new Date(revision.createdAt).toLocaleString()}
-											</span>
-											{revision.revisionNo < page.data.revisionNo ? (
-												<Button
-													variant="outline"
-													size="sm"
-													className="ml-auto"
-													disabled={revert.isPending}
-													onClick={() => revert.mutate(revision.revisionNo)}
-												>
-													Roll back to r{revision.revisionNo}
-												</Button>
-											) : (
-												<Badge variant="secondary" className="ml-auto">
-													current
-												</Badge>
-											)}
-										</li>
-									))}
-								</ul>
-							</AccordionContent>
-						</AccordionItem>
-
+						{/* Backlinks — shown prominently outside accordion */}
 						{page.data.backlinks.length > 0 ? (
-							<AccordionItem value="backlinks">
+							<section className="mt-8">
+								<h2 className="mb-2 font-semibold text-xl">Linked from</h2>
+								<ul className="flex flex-col gap-1.5">
+									{page.data.backlinks.map((page) => (
+										<li key={page.id}>
+											<Link
+												href={`/${page.slug}`}
+												className="text-sm underline underline-offset-2 hover:text-foreground"
+											>
+												{page.title}
+											</Link>
+										</li>
+									))}
+								</ul>
+							</section>
+						) : null}
+
+						<Accordion className="mt-6">
+							<AccordionItem value="sources">
 								<AccordionTrigger>
-									Linked from ({page.data.backlinks.length})
+									Sources ({page.data.sources.length})
 								</AccordionTrigger>
 								<AccordionContent>
 									<ul className="flex flex-col gap-2">
-										{page.data.backlinks.map((page) => (
-											<li key={page.id}>
-												<Link
-													href={`/${page.slug}`}
-													className="text-sm underline underline-offset-2"
-												>
-													{page.title}
-												</Link>
+										{page.data.sources.map((source) => (
+											<li key={source.id} className="text-sm">
+												{source.sourceUrl ? (
+													<a
+														href={source.sourceUrl}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="underline underline-offset-2"
+													>
+														{source.title ?? source.sourceUrl}
+													</a>
+												) : (
+													<span>{source.title ?? "Untitled"}</span>
+												)}
+												<span className="ml-2 text-muted-foreground text-xs">
+													{source.captureType}
+												</span>
 											</li>
 										))}
 									</ul>
 								</AccordionContent>
 							</AccordionItem>
-						) : null}
-					</Accordion>
-				</article>
+
+							<AccordionItem value="revisions">
+								<AccordionTrigger>
+									History ({page.data.revisions.length})
+								</AccordionTrigger>
+								<AccordionContent>
+									<ul className="flex flex-col gap-2">
+										{page.data.revisions.map((revision) => (
+											<li
+												key={revision.id}
+												className="flex items-center gap-3 text-sm"
+											>
+												<span className="font-mono tabular-nums">
+													r{revision.revisionNo}
+												</span>
+												<span className="text-muted-foreground">
+													{revision.action ?? "compile"}
+												</span>
+												<span className="text-muted-foreground text-xs">
+													{new Date(revision.createdAt).toLocaleString()}
+												</span>
+												{revision.revisionNo < page.data.revisionNo ? (
+													<Button
+														variant="outline"
+														size="sm"
+														className="ml-auto"
+														disabled={revert.isPending}
+														onClick={() =>
+															revert.mutate(revision.revisionNo)
+														}
+													>
+														Roll back to r{revision.revisionNo}
+													</Button>
+												) : (
+													<Badge variant="secondary" className="ml-auto">
+														current
+													</Badge>
+												)}
+											</li>
+										))}
+									</ul>
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
+					</article>
+				</div>
 			</div>
 		</div>
 	);

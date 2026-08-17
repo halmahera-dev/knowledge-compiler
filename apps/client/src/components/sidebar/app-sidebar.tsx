@@ -7,7 +7,6 @@ import {
 	HelpCircleIcon,
 	JusticeScale01Icon,
 	NotebookText,
-	Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -62,12 +61,12 @@ export function AppSidebar() {
 					<SidebarGroupContent className="flex flex-col gap-1">
 						<SidebarMenuItem>
 							<SidebarMenuButton
-								data-tour="nav-notes"
+								data-tour="nav-wiki"
 								isActive={onNotes}
 								render={<Link href="/" />}
 							>
 								<HugeiconsIcon icon={NotebookText} />
-								All Notes
+								Wiki
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 
@@ -124,20 +123,9 @@ export function AppSidebar() {
 								<HugeiconsIcon icon={Coins01Icon} />
 								AI Logs
 							</SidebarMenuButton>
-						</SidebarMenuItem>
-
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								data-tour="nav-settings"
-								isActive={pathname === "/settings"}
-								render={<Link href="/settings" />}
-							>
-								<HugeiconsIcon icon={Settings02Icon} />
-								Settings
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarGroupContent>
-				</SidebarGroup>
+					</SidebarMenuItem>
+				</SidebarGroupContent>
+			</SidebarGroup>
 			</SidebarContent>
 
 			<SidebarFooter>
