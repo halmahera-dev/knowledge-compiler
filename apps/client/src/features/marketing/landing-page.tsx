@@ -17,20 +17,20 @@ import type { ReactNode } from "react";
 import { CompileDemo } from "@/features/marketing/compile-demo";
 
 /**
- * The landing page, restyled after linear.app: a fixed dark theme, a
- * headline hero with the product proof directly beneath it, a feature grid,
- * social proof and a closing CTA band — the shape the previous version of
- * this file deliberately avoided.
+ * The landing page, restyled after linear.app: a headline hero with the
+ * product proof directly beneath it, a feature grid, social proof and a
+ * closing CTA band — the shape the previous version of this file
+ * deliberately avoided.
  *
  * The content stays specific rather than generic: the four cards below are
  * the app's own surfaces (same icons as `AppSidebar` — Capture has no
  * dedicated icon here since it has no dedicated route any more; saving now
  * happens inline in the Ask conversation), and the hero's
  * "screenshot" is the real, working `CompileDemo` component, not a mockup.
- * `.dark` is applied on the page's own root rather than relying on the
- * visitor's theme preference, matching linear.app always being dark
- * regardless of OS setting — everything else on this app still follows
- * `ThemeProvider`.
+ * The page follows the visitor's own theme choice via `ThemeProvider`, same
+ * as every other page in the app, rather than forcing dark like linear.app
+ * does — a visitor who set light mode should not get a different theme the
+ * one time they are logged out.
  */
 
 const SURFACES: {
@@ -130,7 +130,7 @@ function Reveal({
 
 export function LandingPage() {
 	return (
-		<div className="dark min-h-svh bg-sidebar">
+		<div className="min-h-svh bg-sidebar">
 			<div className="m-2 overflow-hidden rounded-2xl border bg-background shadow-sm">
 				{/* Sticky, translucent nav — a material layer over content that
 				    scrolls under it, per the apple-design materials guidance,
