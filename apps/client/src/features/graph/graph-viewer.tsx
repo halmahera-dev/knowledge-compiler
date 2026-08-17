@@ -14,7 +14,7 @@ import {
 	ZOOM_STEP,
 } from "./hooks/use-viewport";
 import { maxSharedSources, relationshipStrength } from "./strength";
-import { communityName, communityOf, communityStyleFor } from "./style";
+import { communityName, communityOf, communityStyleFor, nodeCaption } from "./style";
 import type {
 	GraphData,
 	GraphNode,
@@ -230,6 +230,27 @@ export function GraphViewer({
 		return counts;
 	}, [visibleData.nodes, adjacency, visibleNodeIds]);
 
+	/** Map each community to the name of its highest-degree node. */
+	const communityDisplayName = useMemo(() => {
+		const hubs = new Map<number | null, { caption: string; degree: number }>();
+
+		for (const node of simulation.nodes) {
+			const community = communityOf(node);
+			const existing = hubs.get(community);
+
+			if (!existing || node.degree > existing.degree) {
+				hubs.set(community, { caption: nodeCaption(node), degree: node.degree });
+			}
+		}
+
+		const result = new Map<number | null, string>();
+		for (const [community, { caption }] of hubs) {
+			result.set(community, caption);
+		}
+
+		return result;
+	}, [simulation.nodes]);
+
 	/** One chip per cluster, in the order the detection run numbered them. */
 	const legendCommunities = useMemo(() => {
 		const counts = new Map<number | null, number>();
@@ -247,12 +268,12 @@ export function GraphViewer({
 						(a ?? Number.MAX_SAFE_INTEGER) - (b ?? Number.MAX_SAFE_INTEGER),
 				)
 				.map(([community, count]) => ({
-					name: communityName(community),
+					name: communityDisplayName.get(community) ?? communityName(community),
 					count,
 					style: communityStyleFor(community),
 				}))
 		);
-	}, [visibleData.nodes]);
+	}, [visibleData.nodes, communityDisplayName]);
 
 	const legendTypes = useMemo(
 		() =>
@@ -681,7 +702,7 @@ export function GraphViewer({
 		}
 
 		if (focus.kind === "community") {
-			return communityName(communityOf(node)) !== focus.value;
+			return (communityDisplayName.get(communityOf(node)) ?? communityName(communityOf(node))) !== focus.value;
 		}
 
 		return !focusedTypeNodeIds?.has(node.id);
@@ -732,9 +753,9 @@ export function GraphViewer({
 									focus !== null &&
 									(focus.kind === "type"
 										? relationship.type !== focus.value
-										: communityName(communityOf(relationship.source)) !==
+										: (communityDisplayName.get(communityOf(relationship.source)) ?? communityName(communityOf(relationship.source))) !==
 												focus.value &&
-											communityName(communityOf(relationship.target)) !==
+											(communityDisplayName.get(communityOf(relationship.target)) ?? communityName(communityOf(relationship.target))) !==
 												focus.value)
 								}
 								dismissing={

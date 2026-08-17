@@ -1,74 +1,33 @@
 import { IceCubesIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Badge } from "@kc/ui/components/badge";
 import { buttonVariants } from "@kc/ui/components/button";
-import { Card, CardContent } from "@kc/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@kc/ui/components/card";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CompileDemo } from "@/features/marketing/compile-demo";
+import { CompileArrow } from "@/features/marketing/compile-arrow";
+import { LandingGraph } from "@/features/marketing/landing-graph";
 
 /**
  * The landing page.
  *
- * Wears the app's own clothes, deliberately: the page is the same floating
- * inset panel the signed-in shell is (`SidebarInset` — `m-2 rounded-2xl border
- * bg-background`), every surface on it is a real `Card`, and the compile demo
- * is drawn in the same components as the compiled page it is advertising. The
- * transition from here to `/agent` should read as a change of content inside
- * a frame that never moves, because someone who signs up ought to recognise the
- * app they arrive in.
- *
- * What it is not is a hero with three feature cards. The argument is carried by
- * {@link CompileDemo} — three real sources going in, a cited page with a live
- * disagreement coming out — because the claim that separates this from a
- * summariser is one a feature list cannot make.
+ * Six sections, readable in under 15 seconds of scrolling:
+ * 1. Hero — what it is, one CTA
+ * 2. Compile demo — static before/after showing the core claim
+ * 3. Graph — the visual "wow" moment
+ * 4. Workspaces — one account, many isolated spaces
+ * 5. Copilot — cited answers, kept short
+ * 6. Final CTA — close the deal
  */
 
-/** The three things it deliberately is not. Positioning, stated as refusals. */
-const REFUSALS = [
-	{
-		not: "Not a search box",
-		// Sharpened because the page also demonstrates asking questions: the claim
-		// is about when the reading happens, not about whether you may ask.
-		body: "You can ask it things. It answers from what it already compiled, rather than re-reading your library at question time.",
-	},
-	{
-		not: "Not a folder",
-		body: "Nothing to file, tag or tidy. Pages find their own place and link themselves.",
-	},
-	{
-		not: "Not a summariser",
-		body: "Every sentence carries the passage it came from. When two sources disagree the page keeps both — deciding for you is how a summary becomes a rumour.",
-	},
-] as const;
+function Eyebrow({ children }: { children: ReactNode }) {
+	return (
+		<p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+			{children}
+		</p>
+	);
+}
 
-const COMMITMENTS = [
-	["Compiles on save", "Not on every question."],
-	["Cites every sentence", "The passage, not just the link."],
-	["Keeps contradictions", "Marked, never quietly merged."],
-] as const;
-
-const WORKSPACES = [
-	["Thesis", "41 captures · 12 pages"],
-	["Work reading", "18 captures · 6 pages"],
-] as const;
-
-const ANSWER_SOURCES = [
-	[
-		"1",
-		"LLM.int8()",
-		"quantising these uniformly is what destroys accuracy at scale",
-	],
-	["2", "Reasoning under 4-bit weights", "4-bit models lose 9–14 points"],
-] as const;
-
-/**
- * A citation marker inside prose.
- *
- * Marked `aria-hidden` and paired with a visually-hidden label, so a screen
- * reader hears "citation 1" rather than the bare digit running into the
- * sentence before it. Muted rather than indigo, matching how the copilot
- * renders the same marker in `features/agent/citation-markdown.tsx`.
- */
 function SupCite({ n }: { n: number }) {
 	return (
 		<sup className="ml-0.5">
@@ -83,23 +42,12 @@ function SupCite({ n }: { n: number }) {
 	);
 }
 
-function Eyebrow({ children }: { children: ReactNode }) {
-	return (
-		<p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
-			{children}
-		</p>
-	);
-}
-
 export function LandingPage() {
 	return (
 		<div className="min-h-svh bg-sidebar">
 			<div className="m-2 overflow-hidden rounded-2xl border bg-background shadow-sm">
-				{/* The masthead sits on the app's own indigo wash (`.notes-canvas`),
-				    which is the codebase's sanctioned way of using the accent as
-				    atmosphere rather than as decoration. */}
+				{/* ── Masthead ── */}
 				<div className="notes-canvas">
-					{/* Not the app header: no nav to pages you cannot reach yet. */}
 					<header className="mx-auto flex max-w-6xl items-center gap-2 px-5 py-4">
 						<HugeiconsIcon icon={IceCubesIcon} className="size-4" />
 						<span className="font-medium text-sm">Traversa</span>
@@ -111,127 +59,221 @@ export function LandingPage() {
 						</Link>
 					</header>
 
-					{/* Asymmetric on purpose — a centred headline with a button under it
-					    is the one arrangement every landing page already has. */}
-					<section className="mx-auto grid max-w-6xl gap-10 px-5 pt-10 pb-16 lg:grid-cols-12 lg:gap-8">
-						<div className="lg:col-span-7">
-							<Eyebrow>Personal knowledge base</Eyebrow>
+					{/* ── 1. Hero ── */}
+					<section className="mx-auto max-w-6xl px-5 pt-10 pb-16">
+						<Eyebrow>Personal knowledge base</Eyebrow>
 
-							<h1 className="mt-3 font-semibold text-4xl tracking-tight sm:text-5xl">
-								Read it once.
-								<br />
-								It stays read.
-							</h1>
+						<h1 className="mt-3 max-w-[28ch] font-semibold text-4xl tracking-tight sm:text-5xl">
+							Read it once.
+							<br />
+							It stays read.
+						</h1>
 
-							<p className="mt-4 max-w-[52ch] text-lg text-muted-foreground leading-relaxed">
-								Save a link, a passage, or a PDF. An agent reads it, writes down
-								what it claims, and folds that into a wiki that already knows
-								what you saved before.
-							</p>
+						<p className="mt-4 max-w-[52ch] text-lg text-muted-foreground leading-relaxed">
+							Save a link, a passage, or a PDF. An agent reads it once, writes
+							down what it claims, and folds that into a wiki that already knows
+							what you saved before.
+						</p>
 
-							<div className="mt-8 flex flex-wrap items-center gap-4">
-								<Link
-									href="/register"
-									className={buttonVariants({ size: "lg" })}
-								>
-									Start a workspace
-								</Link>
-								<Link
-									href="/login"
-									className="text-muted-foreground text-sm underline-offset-4 transition-colors hover:text-foreground hover:underline"
-								>
-									I already have one
-								</Link>
-							</div>
+						<div className="mt-8 flex flex-wrap items-center gap-4">
+							<Link
+								href="/register"
+								className={buttonVariants({ size: "lg" })}
+							>
+								Start a workspace
+							</Link>
+							<Link
+								href="/login"
+								className="text-muted-foreground text-sm underline-offset-4 transition-colors hover:text-foreground hover:underline"
+							>
+								I already have one
+							</Link>
 						</div>
-
-						{/* The three commitments, as one small surface rather than three
-						    competing ones. */}
-						<aside className="lg:col-span-4 lg:col-start-9">
-							<Card size="sm">
-								<CardContent>
-									<dl className="divide-y divide-border">
-										{COMMITMENTS.map(([term, detail]) => (
-											<div key={term} className="py-3 first:pt-0 last:pb-0">
-												<dt className="font-medium">{term}</dt>
-												<dd className="mt-0.5 text-muted-foreground">
-													{detail}
-												</dd>
-											</div>
-										))}
-									</dl>
-								</CardContent>
-							</Card>
-						</aside>
 					</section>
 				</div>
 
-				<div className="py-16">
-					<CompileDemo />
-				</div>
-
-				{/* The copilot, shown as one exchange rather than described. Its whole
-				    claim is that answers are checkable, which is a thing you can only
-				    judge by seeing an answer next to the passage behind it. */}
+				{/* ── 2. Compile demo: vertical pipeline ── */}
 				<section
-					aria-labelledby="ask-heading"
-					className="mx-auto grid max-w-6xl gap-10 px-5 pb-16 lg:grid-cols-12 lg:gap-8"
+					aria-labelledby="compile-heading"
+					className="mx-auto max-w-6xl px-5 pt-16 pb-16"
 				>
-					<div className="lg:col-span-4">
-						<Eyebrow>And then ask it</Eyebrow>
-						<h2
-							id="ask-heading"
-							className="mt-2 font-semibold text-3xl tracking-tight"
-						>
-							Answers you can check.
-						</h2>
-						<p className="mt-4 text-muted-foreground text-sm leading-relaxed">
-							Answered only from what this workspace compiled, each sentence
-							carrying the claim it rests on. Conversations are saved, so you
-							can pick one up later.
-						</p>
-					</div>
+					<Eyebrow>One topic, three sources</Eyebrow>
+					<h2
+						id="compile-heading"
+						className="mt-2 font-semibold text-3xl tracking-tight"
+					>
+						Multiple sources, one wiki page.
+					</h2>
+					<p className="mt-3 max-w-[58ch] text-muted-foreground text-sm leading-relaxed">
+						Save sources. An agent reads them once. You get a wiki page that
+						cites everything — and keeps contradictions instead of picking a
+						winner.
+					</p>
 
-					<div className="lg:col-span-7 lg:col-start-6">
-						<Card>
-							<CardContent>
-								<p className="font-semibold text-xl">
-									Why does quantisation hurt accuracy unevenly?
+					{/* Sources — horizontal row */}
+					<div className="mt-8 grid gap-3 sm:grid-cols-3">
+						<Card size="sm">
+							<CardContent className="flex flex-col gap-2">
+								<p className="flex items-center gap-2">
+									<Badge variant="secondary">Paper</Badge>
+									<span className="truncate font-medium">
+										National Sleep Foundation meta-analysis
+									</span>
 								</p>
-								<p className="mt-3 leading-relaxed">
-									A small number of channels carry outlier activations, and
-									quantising them uniformly is what dominates the error
-									<SupCite n={1} /> — which is why aggregate benchmarks can look
-									flat while multi-step reasoning drops
-									<SupCite n={2} />.
+								<p className="line-clamp-2 text-muted-foreground text-xs leading-relaxed">
+									Adults aged 18–64 who sleep 7 hours show lower all-cause
+									mortality than those sleeping 6 or fewer, with diminishing
+									returns beyond 8.
 								</p>
+							</CardContent>
+						</Card>
 
-								<ul className="mt-4 divide-y divide-border">
-									{ANSWER_SOURCES.map(([n, source, quote]) => (
-										<li key={n} className="flex gap-2 py-2 last:pb-0">
-											<span className="font-mono text-muted-foreground text-xs">
-												[{n}]
-											</span>
-											<span className="min-w-0">
-												<span className="text-muted-foreground italic">
-													“{quote}”
-												</span>
-												<span className="ml-2 text-muted-foreground text-xs">
-													{source}
-												</span>
-											</span>
-										</li>
-									))}
-								</ul>
+						<Card size="sm">
+							<CardContent className="flex flex-col gap-2">
+								<p className="flex items-center gap-2">
+									<Badge variant="secondary">Note</Badge>
+									<span className="truncate font-medium">
+										My sleep tracking experiment
+									</span>
+								</p>
+								<p className="line-clamp-2 text-muted-foreground text-xs leading-relaxed">
+									After three months of tracking, I feel best at 6.5 hours.
+									The "8 hours" rule left me groggy and slow to start.
+								</p>
+							</CardContent>
+						</Card>
+
+						<Card size="sm">
+							<CardContent className="flex flex-col gap-2">
+								<p className="flex items-center gap-2">
+									<Badge variant="secondary">PDF</Badge>
+									<span className="truncate font-medium">
+										Chronotype and cognitive performance
+									</span>
+								</p>
+								<p className="line-clamp-2 text-muted-foreground text-xs leading-relaxed">
+									Late chronotypes forced into early schedules lose 12–15% on
+									working memory tasks, independent of total sleep duration.
+								</p>
 							</CardContent>
 						</Card>
 					</div>
+
+					<CompileArrow />
+
+					{/* Compiled wiki page */}
+					<Card>
+						<CardHeader>
+							<p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+								Wiki page
+							</p>
+							<CardTitle className="font-semibold text-xl">
+								How much sleep is enough
+							</CardTitle>
+						</CardHeader>
+
+						<CardContent>
+							<section className="mt-5 first:mt-0">
+								<h3 className="mb-1 font-semibold text-base">
+									What the research says
+								</h3>
+								<ul className="divide-y divide-border">
+									<li className="-mx-2 rounded-xl px-2 py-3">
+										<p>Adults sleeping 7+ hours show lower mortality than those sleeping 6 or fewer.</p>
+										<blockquote className="mt-2 border-border border-l-2 pl-3 text-muted-foreground italic leading-relaxed">
+											"Adults aged 18–64 who sleep 7 hours show lower
+											all-cause mortality"
+										</blockquote>
+										<p className="mt-1 pl-3 text-muted-foreground text-xs">
+											National Sleep Foundation meta-analysis
+										</p>
+									</li>
+								</ul>
+							</section>
+
+							<section className="mt-5">
+								<h3 className="mb-1 font-semibold text-base">
+									What varies by person
+								</h3>
+								<ul className="divide-y divide-border">
+									<li className="-mx-2 rounded-xl px-2 py-3">
+										<p className="flex items-start gap-2">
+											<span className="min-w-0 flex-1">
+												6.5 hours of sleep can outperform 8, depending
+												on chronotype and sleep quality.
+											</span>
+											<Badge variant="destructive">disputed</Badge>
+										</p>
+										<blockquote className="mt-2 border-border border-l-2 pl-3 text-muted-foreground italic leading-relaxed">
+											"I feel best at 6.5 hours. The '8 hours' rule left
+											me groggy."
+										</blockquote>
+										<p className="mt-1 pl-3 text-muted-foreground text-xs">
+											My sleep tracking experiment
+										</p>
+									</li>
+									<li className="-mx-2 rounded-xl px-2 py-3">
+										<p className="flex items-start gap-2">
+											<span className="min-w-0 flex-1">
+												Late chronotypes forced into early schedules lose
+												12–15% on working memory, regardless of total
+												hours.
+											</span>
+											<Badge variant="destructive">disputed</Badge>
+										</p>
+										<blockquote className="mt-2 border-border border-l-2 pl-3 text-muted-foreground italic leading-relaxed">
+											"Late chronotypes forced into early schedules lose
+											12–15% on working memory tasks"
+										</blockquote>
+										<p className="mt-1 pl-3 text-muted-foreground text-xs">
+											Chronotype and cognitive performance
+										</p>
+									</li>
+								</ul>
+							</section>
+						</CardContent>
+					</Card>
+
+					<p className="mt-4 max-w-[52ch] text-muted-foreground text-sm leading-relaxed">
+						The research and the personal experiment contradict each other.
+						Nothing here decides which is right — both are on the page,
+						marked, with the passage each came from.
+					</p>
 				</section>
 
-				{/* How the thing is shaped. Stated plainly because it is the part
-				    people get wrong on arrival: they assume one account means one
-				    pile. Rendered as nesting rather than as three bullets, so the
-				    containment is visible instead of asserted. */}
+				{/* ── 3. Graph visualization ── */}
+				<section
+					aria-labelledby="graph-heading"
+					className="mx-auto max-w-6xl px-5 pb-16"
+				>
+					<div className="grid gap-10 lg:grid-cols-12 lg:gap-8">
+						<div className="lg:col-span-4">
+							<Eyebrow>See what it knows</Eyebrow>
+							<h2
+								id="graph-heading"
+								className="mt-2 font-semibold text-3xl tracking-tight"
+							>
+								Topics link themselves.
+							</h2>
+							<p className="mt-4 text-muted-foreground text-sm leading-relaxed">
+								A force-directed graph of every topic in your workspace.
+							 Related concepts cluster together. Contradictions show as
+								edges you can trace back to the source. No filing, no tagging
+								— the shape emerges from what you saved.
+							</p>
+						</div>
+
+						<div className="lg:col-span-8 lg:col-start-5">
+							<Card className="overflow-hidden">
+								<CardContent className="p-0">
+									<LandingGraph />
+								</CardContent>
+							</Card>
+						</div>
+					</div>
+				</section>
+
+				{/* ── 4. Workspaces ── */}
 				<section
 					aria-labelledby="shape-heading"
 					className="mx-auto max-w-6xl px-5 pb-16"
@@ -251,25 +293,32 @@ export function LandingPage() {
 							</p>
 
 							<div className="flex flex-col gap-3">
-								{WORKSPACES.map(([name, contents]) => (
-									<Card
-										key={name}
-										size="sm"
-										className="bg-muted/40 shadow-none"
-									>
-										<CardContent>
-											<p className="flex flex-wrap items-baseline gap-x-3">
-												<span className="font-medium">{name}</span>
-												<span className="text-muted-foreground text-xs tabular-nums">
-													{contents}
-												</span>
-											</p>
-											<p className="mt-1 text-muted-foreground">
-												Its own wiki, graph, gaps and conversations.
-											</p>
-										</CardContent>
-									</Card>
-								))}
+								<Card size="sm" className="bg-muted/40 shadow-none">
+									<CardContent>
+										<p className="flex flex-wrap items-baseline gap-x-3">
+											<span className="font-medium">Thesis</span>
+											<span className="text-muted-foreground text-xs tabular-nums">
+												41 captures · 12 pages
+											</span>
+										</p>
+										<p className="mt-1 text-muted-foreground">
+											Its own wiki, graph, gaps and conversations.
+										</p>
+									</CardContent>
+								</Card>
+								<Card size="sm" className="bg-muted/40 shadow-none">
+									<CardContent>
+										<p className="flex flex-wrap items-baseline gap-x-3">
+											<span className="font-medium">Work reading</span>
+											<span className="text-muted-foreground text-xs tabular-nums">
+												18 captures · 6 pages
+											</span>
+										</p>
+										<p className="mt-1 text-muted-foreground">
+											Its own wiki, graph, gaps and conversations.
+										</p>
+									</CardContent>
+								</Card>
 							</div>
 
 							<p className="text-muted-foreground leading-relaxed">
@@ -280,32 +329,74 @@ export function LandingPage() {
 					</Card>
 				</section>
 
-				{/* Positioning. One object with an internal argument rather than three
-				    cards competing for the same glance. */}
+				{/* ── 5. Copilot ── */}
 				<section
-					aria-labelledby="refusals-heading"
-					className="mx-auto max-w-6xl px-5 pb-16"
+					aria-labelledby="ask-heading"
+					className="mx-auto grid max-w-6xl gap-10 px-5 pb-16 lg:grid-cols-12 lg:gap-8"
 				>
-					<h2 id="refusals-heading" className="sr-only">
-						What it is not
-					</h2>
-					<Card>
-						<CardContent className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
-							{REFUSALS.map(({ not, body }) => (
-								<div
-									key={not}
-									className="py-4 first:pt-0 last:pb-0 md:px-6 md:py-0 md:last:pr-0 md:first:pl-0"
-								>
-									<p className="font-semibold text-xl tracking-tight">{not}</p>
-									<p className="mt-2 text-muted-foreground leading-relaxed">
-										{body}
-									</p>
-								</div>
-							))}
-						</CardContent>
-					</Card>
+					<div className="lg:col-span-4">
+						<Eyebrow>And then ask it</Eyebrow>
+						<h2
+							id="ask-heading"
+							className="mt-2 font-semibold text-3xl tracking-tight"
+						>
+							Answers you can check.
+						</h2>
+						<p className="mt-4 text-muted-foreground text-sm leading-relaxed">
+							Answered only from what this workspace compiled, each sentence
+							carrying the claim it rests on.
+						</p>
+					</div>
+
+					<div className="lg:col-span-7 lg:col-start-6">
+						<Card>
+							<CardContent>
+								<p className="font-semibold text-xl">
+									How much sleep do I actually need?
+								</p>
+								<p className="mt-3 leading-relaxed">
+									Research points to 7 hours as the general threshold for
+									adults<SupCite n={1} />, but individual chronotype and sleep
+									quality can shift that number — one contributor found they
+									performed better at 6.5 hours after months of
+									tracking<SupCite n={2} />.
+								</p>
+
+								<ul className="mt-4 divide-y divide-border">
+									<li className="flex gap-2 py-2 last:pb-0">
+										<span className="font-mono text-muted-foreground text-xs">
+											[1]
+										</span>
+										<span className="min-w-0">
+											<span className="text-muted-foreground italic">
+												"Adults aged 18–64 who sleep 7 hours show lower
+												all-cause mortality"
+											</span>
+											<span className="ml-2 text-muted-foreground text-xs">
+												National Sleep Foundation meta-analysis
+											</span>
+										</span>
+									</li>
+									<li className="flex gap-2 py-2 last:pb-0">
+										<span className="font-mono text-muted-foreground text-xs">
+											[2]
+										</span>
+										<span className="min-w-0">
+											<span className="text-muted-foreground italic">
+												"I feel best at 6.5 hours"
+											</span>
+											<span className="ml-2 text-muted-foreground text-xs">
+												My sleep tracking experiment
+											</span>
+										</span>
+									</li>
+								</ul>
+							</CardContent>
+						</Card>
+					</div>
 				</section>
 
+				{/* ── 6. Final CTA ── */}
 				<section className="mx-auto max-w-6xl px-5 pb-6">
 					<div className="flex flex-wrap items-end justify-between gap-6 rounded-2xl bg-muted/40 px-8 py-10">
 						<div>
@@ -319,9 +410,6 @@ export function LandingPage() {
 						</Link>
 					</div>
 				</section>
-
-				{/* The footer held one line restating the page above it. The call to
-				    action is the last thing worth reading here. */}
 			</div>
 		</div>
 	);
