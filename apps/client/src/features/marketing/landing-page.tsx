@@ -1,87 +1,90 @@
-import { IceCubesIcon } from "@hugeicons/core-free-icons";
+"use client";
+
+import {
+	Asteroid02Icon,
+	Cursor02Icon,
+	HelpCircleIcon,
+	NotebookText,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Avatar, AvatarFallback } from "@kc/ui/components/avatar";
 import { buttonVariants } from "@kc/ui/components/button";
 import { Card, CardContent } from "@kc/ui/components/card";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CompileDemo } from "@/features/marketing/compile-demo";
 
 /**
- * The landing page.
+ * The landing page, restyled after linear.app: a fixed dark theme, a
+ * headline hero with the product proof directly beneath it, a feature grid,
+ * social proof and a closing CTA band — the shape the previous version of
+ * this file deliberately avoided.
  *
- * Wears the app's own clothes, deliberately: the page is the same floating
- * inset panel the signed-in shell is (`SidebarInset` — `m-2 rounded-2xl border
- * bg-background`), every surface on it is a real `Card`, and the compile demo
- * is drawn in the same components as the compiled page it is advertising. The
- * transition from here to `/agent` should read as a change of content inside
- * a frame that never moves, because someone who signs up ought to recognise the
- * app they arrive in.
- *
- * What it is not is a hero with three feature cards. The argument is carried by
- * {@link CompileDemo} — three real sources going in, a cited page with a live
- * disagreement coming out — because the claim that separates this from a
- * summariser is one a feature list cannot make.
+ * The content stays specific rather than generic: the four cards below are
+ * the app's own surfaces (same icons as `AppSidebar` — Capture has no
+ * dedicated icon here since it has no dedicated route any more; saving now
+ * happens inline in the Ask conversation), and the hero's
+ * "screenshot" is the real, working `CompileDemo` component, not a mockup.
+ * `.dark` is applied on the page's own root rather than relying on the
+ * visitor's theme preference, matching linear.app always being dark
+ * regardless of OS setting — everything else on this app still follows
+ * `ThemeProvider`.
  */
 
-/** The three things it deliberately is not. Positioning, stated as refusals. */
-const REFUSALS = [
+const SURFACES: {
+	icon: IconSvgElement;
+	title: string;
+	body: string;
+}[] = [
 	{
-		not: "Not a search box",
-		// Sharpened because the page also demonstrates asking questions: the claim
-		// is about when the reading happens, not about whether you may ask.
-		body: "You can ask it things. It answers from what it already compiled, rather than re-reading your library at question time.",
+		icon: NotebookText,
+		title: "Wiki",
+		body: "Pages that wrote themselves. Every claim keeps the sentence it came from, and every compile is a revision you can roll back.",
 	},
 	{
-		not: "Not a folder",
-		body: "Nothing to file, tag or tidy. Pages find their own place and link themselves.",
+		icon: Cursor02Icon,
+		title: "Ask",
+		body: "Multi-turn conversations, saved per workspace, answered only from compiled pages with the claims cited inline. Paste a link or attach a PDF instead of asking, and it offers to keep it.",
 	},
 	{
-		not: "Not a summariser",
-		body: "Every sentence carries the passage it came from. When two sources disagree the page keeps both — deciding for you is how a summary becomes a rumour.",
+		icon: Asteroid02Icon,
+		title: "Graph",
+		body: 'Typed edges between what your pages talk about — extends, contradicts, prerequisite of, example of — not one undifferentiated "related to".',
+	},
+	{
+		icon: HelpCircleIcon,
+		title: "Gaps",
+		body: "Prerequisites noticed while compiling: what your reading assumes but never covers.",
+	},
+];
+
+const TESTIMONIALS = [
+	{
+		quote:
+			"I stopped losing the thread between papers. The graph shows me where an idea actually comes from.",
+		name: "A. Reader",
+		role: "Placeholder — Researcher",
+	},
+	{
+		quote:
+			"The contradiction flags alone are worth it. My notes used to hide when two sources disagreed.",
+		name: "J. Sato",
+		role: "Placeholder — Grad student",
+	},
+	{
+		quote:
+			"First tool where asking a question feels like checking a citation instead of trusting a summary.",
+		name: "M. Okoye",
+		role: "Placeholder — Engineer",
 	},
 ] as const;
 
-const COMMITMENTS = [
-	["Compiles on save", "Not on every question."],
-	["Cites every sentence", "The passage, not just the link."],
-	["Keeps contradictions", "Marked, never quietly merged."],
-] as const;
-
-const WORKSPACES = [
-	["Thesis", "41 captures · 12 pages"],
-	["Work reading", "18 captures · 6 pages"],
-] as const;
-
-const ANSWER_SOURCES = [
-	[
-		"1",
-		"LLM.int8()",
-		"quantising these uniformly is what destroys accuracy at scale",
-	],
-	["2", "Reasoning under 4-bit weights", "4-bit models lose 9–14 points"],
-] as const;
-
-/**
- * A citation marker inside prose.
- *
- * Marked `aria-hidden` and paired with a visually-hidden label, so a screen
- * reader hears "citation 1" rather than the bare digit running into the
- * sentence before it. Muted rather than indigo, matching how the copilot
- * renders the same marker in `features/agent/citation-markdown.tsx`.
- */
-function SupCite({ n }: { n: number }) {
-	return (
-		<sup className="ml-0.5">
-			<span className="sr-only">citation {n}</span>
-			<span
-				aria-hidden="true"
-				className="font-mono text-muted-foreground text-xs"
-			>
-				[{n}]
-			</span>
-		</sup>
-	);
-}
+const FADE_UP = {
+	hidden: { opacity: 0, transform: "translateY(12px)" },
+	show: { opacity: 1, transform: "translateY(0px)" },
+};
 
 function Eyebrow({ children }: { children: ReactNode }) {
 	return (
@@ -91,45 +94,88 @@ function Eyebrow({ children }: { children: ReactNode }) {
 	);
 }
 
+/**
+ * Fades a section up into view once, on scroll. Explanatory/marketing tier —
+ * the one place this codebase's default of no-animation-for-content doesn't
+ * apply, per `/animate`'s frequency gate: a landing page section is seen once
+ * per visit, not tens of times a day.
+ */
+function Reveal({
+	children,
+	className,
+	stagger = 0,
+}: {
+	children: ReactNode;
+	className?: string;
+	stagger?: number;
+}) {
+	const reduceMotion = useReducedMotion();
+	return (
+		<motion.div
+			className={className}
+			initial="hidden"
+			whileInView="show"
+			viewport={{ once: true, margin: "-80px" }}
+			variants={FADE_UP}
+			transition={
+				reduceMotion
+					? { duration: 0.2 }
+					: { duration: 0.5, ease: [0.23, 1, 0.32, 1], delay: stagger }
+			}
+		>
+			{children}
+		</motion.div>
+	);
+}
+
 export function LandingPage() {
 	return (
-		<div className="min-h-svh bg-sidebar">
+		<div className="dark min-h-svh bg-sidebar">
 			<div className="m-2 overflow-hidden rounded-2xl border bg-background shadow-sm">
-				{/* The masthead sits on the app's own indigo wash (`.notes-canvas`),
-				    which is the codebase's sanctioned way of using the accent as
-				    atmosphere rather than as decoration. */}
-				<div className="notes-canvas">
-					{/* Not the app header: no nav to pages you cannot reach yet. */}
-					<header className="mx-auto flex max-w-6xl items-center gap-2 px-5 py-4">
-						<HugeiconsIcon icon={IceCubesIcon} className="size-4" />
+				{/* Sticky, translucent nav — a material layer over content that
+				    scrolls under it, per the apple-design materials guidance,
+				    rather than an opaque bar that consumes a fixed strip. */}
+				<header className="sticky top-0 z-10 border-border/50 border-b bg-background/70 backdrop-blur-md">
+					<div className="mx-auto flex max-w-6xl items-center gap-2 px-5 py-4">
 						<span className="font-medium text-sm">Traversa</span>
-						<Link
-							href="/login"
-							className="ml-auto text-muted-foreground text-sm underline-offset-4 transition-colors hover:text-foreground hover:underline"
-						>
-							Sign in
-						</Link>
-					</header>
+						<div className="ml-auto flex items-center gap-4">
+							<Link
+								href="/login"
+								className="text-muted-foreground text-sm underline-offset-4 transition-colors hover:text-foreground hover:underline"
+							>
+								Sign in
+							</Link>
+							<Link href="/register" className={buttonVariants({ size: "sm" })}>
+								Start a workspace
+							</Link>
+						</div>
+					</div>
+				</header>
 
-					{/* Asymmetric on purpose — a centred headline with a button under it
-					    is the one arrangement every landing page already has. */}
-					<section className="mx-auto grid max-w-6xl gap-10 px-5 pt-10 pb-16 lg:grid-cols-12 lg:gap-8">
-						<div className="lg:col-span-7">
+				{/* Hero — headline, pitch, CTA, then the real product proof
+				    directly beneath, the way linear.app puts its product shot
+				    right under the fold rather than behind a scroll. */}
+				<div className="notes-canvas">
+					<section className="mx-auto max-w-6xl px-5 pt-16 pb-12 text-center">
+						<motion.div
+							initial={{ opacity: 0, transform: "translateY(16px)" }}
+							animate={{ opacity: 1, transform: "translateY(0px)" }}
+							transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
+						>
 							<Eyebrow>Personal knowledge base</Eyebrow>
 
-							<h1 className="mt-3 font-semibold text-4xl tracking-tight sm:text-5xl">
+							<h1 className="mx-auto mt-4 max-w-3xl font-semibold text-5xl tracking-tight sm:text-6xl">
 								Read it once.
 								<br />
 								It stays read.
 							</h1>
 
-							<p className="mt-4 max-w-[52ch] text-lg text-muted-foreground leading-relaxed">
-								Save a link, a passage, or a PDF. An agent reads it, writes down
-								what it claims, and folds that into a wiki that already knows
-								what you saved before.
+							<p className="mx-auto mt-5 max-w-[52ch] text-lg text-muted-foreground leading-relaxed">
+								A memory system that helps people who read a lot fold everything
+								they read into a self-building, evidence-linked wiki.
 							</p>
 
-							<div className="mt-8 flex flex-wrap items-center gap-4">
+							<div className="mt-8 flex flex-wrap items-center justify-center gap-4">
 								<Link
 									href="/register"
 									className={buttonVariants({ size: "lg" })}
@@ -143,173 +189,101 @@ export function LandingPage() {
 									I already have one
 								</Link>
 							</div>
-						</div>
-
-						{/* The three commitments, as one small surface rather than three
-						    competing ones. */}
-						<aside className="lg:col-span-4 lg:col-start-9">
-							<Card size="sm">
-								<CardContent>
-									<dl className="divide-y divide-border">
-										{COMMITMENTS.map(([term, detail]) => (
-											<div key={term} className="py-3 first:pt-0 last:pb-0">
-												<dt className="font-medium">{term}</dt>
-												<dd className="mt-0.5 text-muted-foreground">
-													{detail}
-												</dd>
-											</div>
-										))}
-									</dl>
-								</CardContent>
-							</Card>
-						</aside>
+						</motion.div>
 					</section>
-				</div>
 
-				<div className="py-16">
-					<CompileDemo />
-				</div>
-
-				{/* The copilot, shown as one exchange rather than described. Its whole
-				    claim is that answers are checkable, which is a thing you can only
-				    judge by seeing an answer next to the passage behind it. */}
-				<section
-					aria-labelledby="ask-heading"
-					className="mx-auto grid max-w-6xl gap-10 px-5 pb-16 lg:grid-cols-12 lg:gap-8"
-				>
-					<div className="lg:col-span-4">
-						<Eyebrow>And then ask it</Eyebrow>
-						<h2
-							id="ask-heading"
-							className="mt-2 font-semibold text-3xl tracking-tight"
-						>
-							Answers you can check.
-						</h2>
-						<p className="mt-4 text-muted-foreground text-sm leading-relaxed">
-							Answered only from what this workspace compiled, each sentence
-							carrying the claim it rests on. Conversations are saved, so you
-							can pick one up later.
-						</p>
-					</div>
-
-					<div className="lg:col-span-7 lg:col-start-6">
-						<Card>
-							<CardContent>
-								<p className="font-semibold text-xl">
-									Why does quantisation hurt accuracy unevenly?
-								</p>
-								<p className="mt-3 leading-relaxed">
-									A small number of channels carry outlier activations, and
-									quantising them uniformly is what dominates the error
-									<SupCite n={1} /> — which is why aggregate benchmarks can look
-									flat while multi-step reasoning drops
-									<SupCite n={2} />.
-								</p>
-
-								<ul className="mt-4 divide-y divide-border">
-									{ANSWER_SOURCES.map(([n, source, quote]) => (
-										<li key={n} className="flex gap-2 py-2 last:pb-0">
-											<span className="font-mono text-muted-foreground text-xs">
-												[{n}]
-											</span>
-											<span className="min-w-0">
-												<span className="text-muted-foreground italic">
-													“{quote}”
-												</span>
-												<span className="ml-2 text-muted-foreground text-xs">
-													{source}
-												</span>
-											</span>
-										</li>
-									))}
-								</ul>
-							</CardContent>
-						</Card>
-					</div>
-				</section>
-
-				{/* How the thing is shaped. Stated plainly because it is the part
-				    people get wrong on arrival: they assume one account means one
-				    pile. Rendered as nesting rather than as three bullets, so the
-				    containment is visible instead of asserted. */}
-				<section
-					aria-labelledby="shape-heading"
-					className="mx-auto max-w-6xl px-5 pb-16"
-				>
-					<Eyebrow>How it is arranged</Eyebrow>
-					<h2
-						id="shape-heading"
-						className="mt-2 max-w-[24ch] font-semibold text-3xl tracking-tight"
+					{/* The product shot: a real, working component in a framed
+					    surface, materialised on mount rather than a plain
+					    opacity fade, per the materials guidance. */}
+					<motion.div
+						className="mx-auto max-w-6xl px-5 pb-20"
+						initial={{ opacity: 0, transform: "scale(0.97)" }}
+						animate={{ opacity: 1, transform: "scale(1)" }}
+						transition={{
+							duration: 0.6,
+							delay: 0.15,
+							ease: [0.23, 1, 0.32, 1],
+						}}
 					>
-						One account, as many workspaces as you keep subjects.
+						<div className="rounded-3xl border bg-background/60 p-6 shadow-2xl shadow-primary/10 ring-1 ring-foreground/5 sm:p-10">
+							<CompileDemo />
+						</div>
+					</motion.div>
+				</div>
+
+				{/* Feature grid — the app's own five surfaces, same icons as
+				    `AppSidebar`, so someone who signs up recognises this grid
+				    again as the actual nav. */}
+				<Reveal className="mx-auto max-w-6xl px-5 pb-20">
+					<Eyebrow>Everywhere in the app</Eyebrow>
+					<h2 className="mt-2 max-w-[26ch] font-semibold text-3xl tracking-tight">
+						Four surfaces, one compiled workspace.
 					</h2>
 
-					<Card className="mt-8 max-w-3xl">
-						<CardContent className="flex flex-col gap-4">
-							<p className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
-								Your account
-							</p>
+					<div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+						{SURFACES.map((surface, i) => (
+							<Reveal key={surface.title} stagger={i * 0.05}>
+								<Card className="h-full">
+									<CardContent className="flex h-full flex-col gap-3">
+										<span className="flex size-9 items-center justify-center rounded-full bg-sidebar-accent">
+											<HugeiconsIcon icon={surface.icon} className="size-4" />
+										</span>
+										<p className="font-semibold text-lg tracking-tight">
+											{surface.title}
+										</p>
+										<p className="text-muted-foreground leading-relaxed">
+											{surface.body}
+										</p>
+									</CardContent>
+								</Card>
+							</Reveal>
+						))}
+					</div>
+				</Reveal>
 
-							<div className="flex flex-col gap-3">
-								{WORKSPACES.map(([name, contents]) => (
-									<Card
-										key={name}
-										size="sm"
-										className="bg-muted/40 shadow-none"
-									>
-										<CardContent>
-											<p className="flex flex-wrap items-baseline gap-x-3">
-												<span className="font-medium">{name}</span>
-												<span className="text-muted-foreground text-xs tabular-nums">
-													{contents}
-												</span>
-											</p>
-											<p className="mt-1 text-muted-foreground">
-												Its own wiki, graph, gaps and conversations.
-											</p>
-										</CardContent>
-									</Card>
-								))}
-							</div>
-
-							<p className="text-muted-foreground leading-relaxed">
-								Nothing crosses between them. A question asked in one is
-								answered only from what that one has read.
-							</p>
-						</CardContent>
-					</Card>
-				</section>
-
-				{/* Positioning. One object with an internal argument rather than three
-				    cards competing for the same glance. */}
-				<section
-					aria-labelledby="refusals-heading"
-					className="mx-auto max-w-6xl px-5 pb-16"
-				>
-					<h2 id="refusals-heading" className="sr-only">
-						What it is not
+				{/* Social proof — explicitly placeholder. Three fictional
+				    readers rather than zero credibility signal, but no company
+				    logos: there are no real customers yet, and a logo implies a
+				    named customer in a way a quote attributed to "A. Reader"
+				    does not. */}
+				<Reveal className="mx-auto max-w-6xl px-5 pb-20">
+					<Eyebrow>What early readers say (placeholder)</Eyebrow>
+					<h2 className="mt-2 font-semibold text-3xl tracking-tight">
+						Not real yet — swap before launch.
 					</h2>
-					<Card>
-						<CardContent className="grid divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
-							{REFUSALS.map(({ not, body }) => (
-								<div
-									key={not}
-									className="py-4 first:pt-0 last:pb-0 md:px-6 md:py-0 md:last:pr-0 md:first:pl-0"
-								>
-									<p className="font-semibold text-xl tracking-tight">{not}</p>
-									<p className="mt-2 text-muted-foreground leading-relaxed">
-										{body}
-									</p>
-								</div>
-							))}
-						</CardContent>
-					</Card>
-				</section>
 
-				<section className="mx-auto max-w-6xl px-5 pb-6">
+					<div className="mt-8 grid gap-4 md:grid-cols-3">
+						{TESTIMONIALS.map((t, i) => (
+							<Reveal key={t.name} stagger={i * 0.05}>
+								<Card className="h-full">
+									<CardContent className="flex h-full flex-col gap-4">
+										<p className="text-muted-foreground leading-relaxed">
+											“{t.quote}”
+										</p>
+										<div className="mt-auto flex items-center gap-3">
+											<Avatar size="sm">
+												<AvatarFallback>{t.name.slice(0, 1)}</AvatarFallback>
+											</Avatar>
+											<div>
+												<p className="font-medium text-sm">{t.name}</p>
+												<p className="text-muted-foreground text-xs">
+													{t.role}
+												</p>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							</Reveal>
+						))}
+					</div>
+				</Reveal>
+
+				{/* Closing CTA — pricing folded in as a single line rather than
+				    a separate section, since there is nothing to compare yet. */}
+				<Reveal className="mx-auto max-w-6xl px-5 pb-6">
 					<div className="flex flex-wrap items-end justify-between gap-6 rounded-2xl bg-muted/40 px-8 py-10">
 						<div>
-							<Eyebrow>Nothing to configure</Eyebrow>
+							<Eyebrow>Free while in beta</Eyebrow>
 							<p className="mt-2 max-w-[34ch] font-semibold text-3xl tracking-tight">
 								Your first page compiles about a minute after your first save.
 							</p>
@@ -318,10 +292,19 @@ export function LandingPage() {
 							Start a workspace
 						</Link>
 					</div>
-				</section>
+				</Reveal>
 
-				{/* The footer held one line restating the page above it. The call to
-				    action is the last thing worth reading here. */}
+				<footer className="mx-auto flex max-w-6xl items-center justify-between px-5 py-8 text-muted-foreground text-sm">
+					<span>© {new Date().getFullYear()} Traversa</span>
+					<a
+						href="https://github.com/halmahera-dev/knowledge-compiler"
+						target="_blank"
+						rel="noreferrer"
+						className="underline-offset-4 transition-colors hover:text-foreground hover:underline"
+					>
+						GitHub
+					</a>
+				</footer>
 			</div>
 		</div>
 	);
