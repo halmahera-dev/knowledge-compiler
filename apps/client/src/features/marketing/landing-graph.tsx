@@ -6,7 +6,7 @@ import { GraphViewer } from "@/features/graph";
 /**
  * Hardcoded mock graph for the landing page. Same visual language as the real
  * thing — community-coloured nodes, curved arcs, force-directed layout — but
- * with sleep-research topics instead of quantisation jargon.
+ * with sleep-research topics instead of the product's own jargon.
  */
 
 const MOCK_DATA: GraphData = {

@@ -9,21 +9,21 @@ services:
     image: ghcr.io/${GH_OWNER}/kc-client:latest
     restart: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file: .env
 
   api:
     image: ghcr.io/${GH_OWNER}/kc-api:latest
     restart: always
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file: .env
 
   agent:
     image: ghcr.io/${GH_OWNER}/kc-agent:latest
     restart: always
     ports:
-      - "4111:4111"
+      - "127.0.0.1:4111:4111"
     env_file: .env
 
   worker:
