@@ -7,6 +7,7 @@ import {
 	HelpCircleIcon,
 	JusticeScale01Icon,
 	NotebookText,
+	Pulse01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -34,6 +35,7 @@ import NavUser from "@/features/user/components/nav-user";
  */
 const APP_ROUTES = new Set([
 	"agent",
+	"activity",
 	"graph",
 	"gaps",
 	"disputes",
@@ -67,6 +69,17 @@ export function AppSidebar() {
 							>
 								<HugeiconsIcon icon={NotebookText} />
 								Wiki
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								data-tour="nav-activity"
+								isActive={pathname === "/activity"}
+								render={<Link href="/activity" />}
+							>
+								<HugeiconsIcon icon={Pulse01Icon} />
+								Activity
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 

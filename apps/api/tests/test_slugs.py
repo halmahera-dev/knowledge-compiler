@@ -50,6 +50,7 @@ class TestReservedSlugs:
         # A new top-level route added without touching this set is the failure
         # this catches.
         for route in (
+            "activity",
             "graph",
             "gaps",
             "agent",

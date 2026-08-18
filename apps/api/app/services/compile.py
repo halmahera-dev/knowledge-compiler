@@ -65,6 +65,7 @@ class CompileError(RuntimeError):
 #: differently depending on when it was compiled.
 RESERVED_SLUGS = frozenset(
     {
+        "activity",
         "agent",
         "ai-logs",
         "api",

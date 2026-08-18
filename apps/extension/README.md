@@ -139,8 +139,8 @@ fail silently.
    works, then settles green with a tick.
 7. Select a paragraph, right-click, **Save "…" to Traversa**.
    → Same card. Under 80 characters it refuses, which is intended.
-8. Check the home page in the app. The save should appear in the activity feed,
-   and `/ai-logs` should show the embedding call it cost.
+8. Open **Activity** in the app. The save should appear there, and `/ai-logs`
+   should show the embedding call it cost.
 
 If step 6 reports that the app will not issue a token, the id you trusted does
 not match the one Chrome shows — the message names the id to add. If it says the

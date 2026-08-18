@@ -15,7 +15,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { QueryError, QuerySkeleton } from "@/components/query-states";
-import { CompileFeed } from "@/features/capture/components/compile-feed";
 import { TourButton } from "@/features/tour/tour-button";
 import { pagesQueryOptions } from "@/features/wiki/wiki-query-options";
 
@@ -124,12 +123,6 @@ export function WikiIndex() {
 
 			<div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
 				<WikiList query={query} />
-
-				{/* Saving happens in the conversation now, so the place to watch a
-				    save land is the place the reading happens. Hidden while a search
-				    is running: the list above is then a filtered view, and an
-				    unfiltered activity log under it reads as part of the results. */}
-				{query ? null : <CompileFeed />}
 			</div>
 		</div>
 	);
