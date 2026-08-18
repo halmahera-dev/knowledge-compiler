@@ -103,28 +103,30 @@ export function GraphLegend({
 			{/* Communities dropdown */}
 			{communities.length > 0 ? (
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-2 font-medium text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-						>
-							{activeCommunity ? (
-								<>
-									<span
-										aria-hidden="true"
-										className="size-2.5 shrink-0 rounded-full"
-										style={{ backgroundColor: activeCommunity.style.fill }}
-									/>
-									<span className="truncate">{activeCommunity.name}</span>
-									<span className="tabular-nums opacity-60">
-										{activeCommunity.count}
-									</span>
-								</>
-							) : (
-								<span>Communities</span>
-							)}
-							<ChevronDown className="size-3 shrink-0 opacity-60" />
-						</button>
+					<DropdownMenuTrigger
+						render={
+							<button
+								type="button"
+								className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-2 font-medium text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+							/>
+						}
+					>
+						{activeCommunity ? (
+							<>
+								<span
+									aria-hidden="true"
+									className="size-2.5 shrink-0 rounded-full"
+									style={{ backgroundColor: activeCommunity.style.fill }}
+								/>
+								<span className="truncate">{activeCommunity.name}</span>
+								<span className="tabular-nums opacity-60">
+									{activeCommunity.count}
+								</span>
+							</>
+						) : (
+							<span>Communities</span>
+						)}
+						<ChevronDown className="size-3 shrink-0 opacity-60" />
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" sideOffset={4}>
 						{communities.map(({ name, count, style }) => (
