@@ -109,8 +109,22 @@ describe("environments", () => {
   it("covers the three addresses this project runs at", async () => {
     const { ENVIRONMENTS } = await import("./config.js");
     const hosts = ENVIRONMENTS.map((env) => new URL(env.app).hostname);
-    for (const host of ["localhost", "127.0.0.1", "34.228.186.46"]) {
+    for (const host of ["localhost", "127.0.0.1", "traversa.halmahera.site"]) {
       assert.ok(hosts.includes(host), `no environment for ${host}`);
+    }
+  });
+
+  it("reaches the deployment over https", async () => {
+    // The clip carries a session cookie. Over http it crosses the network in
+    // the clear, and Chrome refuses a credentialed request from an https page
+    // to an http origin anyway — which presents as a save that silently does
+    // nothing.
+    const { ENVIRONMENTS } = await import("./config.js");
+    for (const env of ENVIRONMENTS) {
+      const local = ["localhost", "127.0.0.1"].includes(new URL(env.app).hostname);
+      if (local) continue;
+      assert.equal(new URL(env.app).protocol, "https:", env.label);
+      assert.equal(new URL(env.api).protocol, "https:", env.label);
     }
   });
 

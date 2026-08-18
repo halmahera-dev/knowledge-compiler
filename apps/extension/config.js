@@ -16,9 +16,19 @@
  */
 
 export const ENVIRONMENTS = [
+  // The deployment first, because it is where almost every install saves to,
+  // and `DEFAULT_APP` below is the last resort when nothing else answered.
+  //
+  // One origin for both: nginx serves the app at `/`, the API under `/api/v1`
+  // and auth under `/api/auth`, so there is no second port to reach. Local dev
+  // has no proxy, so there the API really is a separate origin.
+  {
+    label: "Traversa",
+    app: "https://traversa.halmahera.site",
+    api: "https://traversa.halmahera.site",
+  },
   { label: "Local", app: "http://localhost:3000", api: "http://localhost:8000" },
   { label: "Local (127.0.0.1)", app: "http://127.0.0.1:3000", api: "http://127.0.0.1:8000" },
-  { label: "Server", app: "http://34.228.186.46:3000", api: "http://34.228.186.46:8000" },
 ];
 
 /** Used only until a save has proved which environment is actually reachable. */

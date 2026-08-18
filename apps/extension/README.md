@@ -39,24 +39,30 @@ repeat.
 
 ## Install
 
-1. Download it from the app's **Settings** page, under **Clip from the
-   browser**, and unzip it. (Or use `apps/extension` straight from the
-   repository — same files.)
+1. Download it from the app: open the composer on **Agent** and press the
+   puzzle-piece button beside the paperclip. Unzip it. (Or use `apps/extension`
+   straight from the repository — same files.)
 2. Open `chrome://extensions`, turn on **Developer mode**, choose **Load
    unpacked**, and pick the folder.
 3. Copy the extension **ID** from its card, and paste it into **Trust your
-   copy** on that same Settings page.
+   copy** in that same dialog.
 
 Step 3 is not optional. The app will not hand a token to an origin it has not
 been told about, so without it every save fails at the mint. No restart is
 needed, and nothing goes in `.env`: Chrome gives every unpacked install its own
 id, so the list is per account rather than per deployment.
 
-**No address to configure.** The extension knows the environments this project
-runs in — `localhost`, `127.0.0.1` and the server — and works out which one to
-save to at the moment you save: whichever has the app open in a tab, else
-whichever answers with a session. The popup's API and App fields are still
-there for anything else, and typing one overrides the automatic answer.
+**No address to configure, and no fields to fill in.** The extension knows the
+environments this project runs in — `localhost`, `127.0.0.1` and
+`traversa.halmahera.site` — and works out which one to save to at the moment you
+save: whichever has the app open in a tab, else whichever answers with a
+session.
+
+The popup used to carry API and App fields. They are gone. They asked every
+reader to know which of two URLs the extension talks to, and worse, what they
+typed was stored and then took priority over the automatic answer — so an
+install that once saved to localhost kept aiming there from every other machine,
+and the failure looked exactly like being signed out.
 
 ## Going to production
 
@@ -82,9 +88,8 @@ visible rather than guessed at.
 `config.js` and granted in `manifest.json`, so nothing needs editing to reach
 them. For a *different* deployment, append it to `ENVIRONMENTS` and add both
 origins to `host_permissions` — the manifest cannot read `config.js`, so they are
-kept in step by hand, and a test fails if they drift. Anything not on the list
-can still be reached by typing it into the popup, which asks Chrome for
-permission at that point.
+kept in step by hand, and a test fails if they drift. There is no longer a way
+to reach an address that is not on the list — that is the point of the list.
 
 **3. Reaching an origin at all.** Everything in `ENVIRONMENTS` is a required
 permission, granted at install, so both the toolbar and the right-click menu work
@@ -120,8 +125,8 @@ fail silently.
    `:8000`.
 2. `chrome://extensions` → **Developer mode** on → **Load unpacked** →
    `apps/extension`.
-3. Sign in at `http://localhost:3000`, open **Settings**, and paste the
-   extension id from that card into **Trust your copy**.
+3. Sign in at `http://localhost:3000`, open the composer's puzzle-piece
+   button, and paste the extension id from that card into **Trust your copy**.
 4. That is the whole of it — no restart, and nothing in `.env`. The list is read
    per request and belongs to your account, so two people sharing one deployment
    each trust their own copy. *Not optional*: without it every save fails at the
@@ -137,9 +142,9 @@ fail silently.
 8. Check the home page in the app. The save should appear in the activity feed,
    and `/ai-logs` should show the embedding call it cost.
 
-If step 6 reports that the app will not issue a token, the id trusted on
-Settings does not match the one Chrome shows — the message names the id to add.
-If it says the app is unreachable, `pnpm dev` is not running.
+If step 6 reports that the app will not issue a token, the id you trusted does
+not match the one Chrome shows — the message names the id to add. If it says the
+app is unreachable, `pnpm dev` is not running.
 
 ### Production
 

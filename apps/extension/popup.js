@@ -20,8 +20,6 @@ const titleEl = document.getElementById("title");
 const metaEl = document.getElementById("meta");
 const saveEl = document.getElementById("save");
 const statusEl = document.getElementById("status");
-const apiEl = document.getElementById("api");
-const appEl = document.getElementById("app");
 
 /** What the current tab yielded, filled in by `loadPage`. */
 let extracted = null;
@@ -97,11 +95,6 @@ async function save() {
 
   const label = metadata?.title || extracted.title || "This page";
 
-  await chrome.storage.sync.set({
-    apiBase: (apiEl.value || DEFAULT_API).replace(/\/$/, ""),
-    appBase: (appEl.value || DEFAULT_APP).replace(/\/$/, ""),
-  });
-
   // Drawn in the page rather than only here, because closing the popup is the
   // natural thing to do while a save is in flight — and then the result had
   // nowhere to land.
@@ -166,25 +159,29 @@ async function save() {
  * `permissions.request` needs the user gesture and an await spends it. When the
  * origins are already granted it resolves immediately without a prompt, so this
  * costs nothing on the common path.
+ *
+ * That is why the bases are resolved when the popup opens rather than here:
+ * `getBases` may probe the network, and awaiting it inside the click would
+ * spend the gesture before Chrome was ever asked.
  */
-async function ensureAccess() {
-  const origins = originsFor(apiEl.value || DEFAULT_API, appEl.value || DEFAULT_APP);
-  if (!origins.length) return true;
+function ensureAccess(bases) {
+  const origins = originsFor(bases.api, bases.app);
+  if (!origins.length) return Promise.resolve(true);
   try {
-    return await chrome.permissions.request({ origins });
+    return chrome.permissions.request({ origins });
   } catch {
     // Not fatal on its own: let the save try and report the real failure.
-    return true;
+    return Promise.resolve(true);
   }
 }
 
 (async () => {
+  // Resolved once, up front. Nothing here is configurable any more, so this is
+  // the only place that needs to know where this popup is pointed.
   const bases = await getBases();
-  apiEl.value = bases.api;
-  appEl.value = bases.app;
 
   saveEl.addEventListener("click", async () => {
-    if (!(await ensureAccess())) {
+    if (!(await ensureAccess(bases))) {
       setStatus("Access to those URLs was declined, so nothing can be saved to them.", "err");
       return;
     }

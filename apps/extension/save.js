@@ -35,8 +35,19 @@ export const NOT_SIGNED_IN = "NOT_SIGNED_IN";
  */
 export async function getBases() {
   const stored = await chrome.storage.sync.get(["apiBase", "appBase", "resolvedApp"]);
-  if (stored.apiBase && stored.appBase) {
-    return { api: trim(stored.apiBase), app: trim(stored.appBase) };
+
+  // `apiBase`/`appBase` were what the popup's URL fields wrote, and they took
+  // priority over everything below — so the first successful save pinned the
+  // extension to that environment for good. An install that started on
+  // localhost kept aiming there from every other machine, and the failure read
+  // as being signed out. The fields are gone; these are cleared on sight so an
+  // install from before this change is not stuck with them.
+  if (stored.apiBase || stored.appBase) {
+    try {
+      await chrome.storage.sync.remove(["apiBase", "appBase"]);
+    } catch {
+      // Nothing to do about it, and nothing below depends on the removal.
+    }
   }
 
   const open = await environmentInATab();

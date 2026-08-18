@@ -132,19 +132,12 @@
     <button id="save" disabled>Save and compile</button>
     <p id="status" role="status" aria-live="polite"></p>
 
-    <div class="row">
-      <label for="api">API</label>
-      <span>compiles here</span>
-    </div>
-    <input id="api" type="url" spellcheck="false" />
-
-    <div class="row">
-      <label for="app">App</label>
-      <!-- Named "signs in here" because that is the only thing this URL is for:
-           the extension has no login and borrows the app's session. -->
-      <span>signs in here</span>
-    </div>
-    <input id="app" type="url" spellcheck="false" />
+    <!-- No API or App fields any more. They asked every reader to know which
+         of two URLs the extension talks to, offered no way to find out, and
+         the value they wrote was pinned ahead of the automatic answer — so an
+         install that once saved to localhost kept trying to, wherever it was
+         used next. The environments in config.js cover every deployment this
+         project runs, and the right one is worked out at save time. -->
 
     <script type="module" src="popup.js"></script>
   </body>

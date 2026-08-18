@@ -17,6 +17,7 @@ import { cn } from "@kc/ui/lib/utils";
 import type { DragEvent, FormEvent } from "react";
 import { useRef, useState } from "react";
 import type { Attachment } from "@/features/agent/attachments";
+import { ExtensionDialog } from "@/features/settings/components/extension-dialog";
 
 /**
  * The composer, which is now also the way things get saved.
@@ -187,6 +188,11 @@ export function ChatInput({
 								<HugeiconsIcon icon={Attachment01Icon} />
 								<span className="sr-only">Attach a PDF</span>
 							</InputGroupButton>
+
+							{/* Beside the paperclip because they answer the same
+							    question from opposite ends: that one takes a file you
+							    already have, this one takes the page you are reading. */}
+							<ExtensionDialog />
 						</>
 					) : null}
 
